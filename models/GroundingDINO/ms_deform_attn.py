@@ -27,7 +27,7 @@ from torch.nn.init import constant_, xavier_uniform_
 
 try:
     # from groundingdino import _C
-    import MultiScaleDeformableAttention as _C
+    from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttnFunction
 except:
     warnings.warn("Failed to load custom C++ ops. Running on CPU mode Only!")
 
@@ -39,56 +39,56 @@ def _is_power_of_2(n):
     return (n & (n - 1) == 0) and n != 0
 
 
-class MultiScaleDeformableAttnFunction(Function):
-    @staticmethod
-    def forward(
-        ctx,
-        value,
-        value_spatial_shapes,
-        value_level_start_index,
-        sampling_locations,
-        attention_weights,
-        im2col_step,
-    ):
-        ctx.im2col_step = im2col_step
-        output = _C.ms_deform_attn_forward(
-            value,
-            value_spatial_shapes,
-            value_level_start_index,
-            sampling_locations,
-            attention_weights,
-            ctx.im2col_step,
-        )
-        ctx.save_for_backward(
-            value,
-            value_spatial_shapes,
-            value_level_start_index,
-            sampling_locations,
-            attention_weights,
-        )
-        return output
+# class MultiScaleDeformableAttnFunction(Function):
+#     @staticmethod
+#     def forward(
+#         ctx,
+#         value,
+#         value_spatial_shapes,
+#         value_level_start_index,
+#         sampling_locations,
+#         attention_weights,
+#         im2col_step,
+#     ):
+#         ctx.im2col_step = im2col_step
+#         output = _C.ms_deform_attn_forward(
+#             value,
+#             value_spatial_shapes,
+#             value_level_start_index,
+#             sampling_locations,
+#             attention_weights,
+#             ctx.im2col_step,
+#         )
+#         ctx.save_for_backward(
+#             value,
+#             value_spatial_shapes,
+#             value_level_start_index,
+#             sampling_locations,
+#             attention_weights,
+#         )
+#         return output
 
-    @staticmethod
-    @once_differentiable
-    def backward(ctx, grad_output):
-        (
-            value,
-            value_spatial_shapes,
-            value_level_start_index,
-            sampling_locations,
-            attention_weights,
-        ) = ctx.saved_tensors
-        grad_value, grad_sampling_loc, grad_attn_weight = _C.ms_deform_attn_backward(
-            value,
-            value_spatial_shapes,
-            value_level_start_index,
-            sampling_locations,
-            attention_weights,
-            grad_output,
-            ctx.im2col_step,
-        )
+#     @staticmethod
+#     @once_differentiable
+#     def backward(ctx, grad_output):
+#         (
+#             value,
+#             value_spatial_shapes,
+#             value_level_start_index,
+#             sampling_locations,
+#             attention_weights,
+#         ) = ctx.saved_tensors
+#         grad_value, grad_sampling_loc, grad_attn_weight = _C.ms_deform_attn_backward(
+#             value,
+#             value_spatial_shapes,
+#             value_level_start_index,
+#             sampling_locations,
+#             attention_weights,
+#             grad_output,
+#             ctx.im2col_step,
+#         )
 
-        return grad_value, None, None, grad_sampling_loc, grad_attn_weight, None
+#         return grad_value, None, None, grad_sampling_loc, grad_attn_weight, None
 
 
 def multi_scale_deformable_attn_pytorch(
