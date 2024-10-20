@@ -27,6 +27,7 @@ class ODVGDataset(VisionDataset):
     def __init__(
         self,
         root: str,
+        query_root: str,
         anno: str,
         label_map_anno: str = None,
         max_labels: int = 80,
@@ -36,6 +37,7 @@ class ODVGDataset(VisionDataset):
     ) -> None:
         super().__init__(root, transforms, transform, target_transform)
         self.root = root
+        self.query_root = query_root
         self.dataset_mode = "OD" if label_map_anno else "VG"
         self.max_labels = max_labels
         if self.dataset_mode == "OD":
@@ -59,12 +61,21 @@ class ODVGDataset(VisionDataset):
 
     def __getitem__(self, index: int):
         meta = self.metas[index]
+        # get target image
         rel_path = meta["filename"]
         abs_path = os.path.join(self.root, rel_path)
         if not os.path.exists(abs_path):
             raise FileNotFoundError(f"{abs_path} not found.")
         image = Image.open(abs_path).convert('RGB')
         w, h = image.size
+        # get query image 
+        qry_path = os.path.join(self.query_root, meta["query_file"]["filename"])
+        if not os.path.exists(qry_path):
+            raise FileNotFoundError(f"{qry_path} not found.")
+        query = Image.open(qry_path).convert('RGB')
+        exemplar = torch.tensor(meta["query_file"]["exemplar"], dtype=torch.int64)
+        
+        # preprocess data
         if self.dataset_mode == "OD":
             anno = meta["detection"]
             instances = [obj for obj in anno["instances"]]
@@ -116,12 +127,19 @@ class ODVGDataset(VisionDataset):
         target["caption"] = caption
         target["boxes"] = boxes
         target["labels"] = classes
+        target["exemplars"] = exemplar
+        target["labels_uncropped"] = torch.clone(classes)
+        if len(target['labels']) > 0:
+            assert target['labels'][0] == target['labels_uncropped'][0]
+            print('asserted')
         # size, cap_list, caption, bboxes, labels
 
         if self.transforms is not None:
             image, target = self.transforms(image, target)
+            ## be careful because exemplars haven't been transformed
+            query, q_targ = self.transforms(query, {})
 
-        return image, target
+        return image, query, target
     
 
     def __len__(self) -> int:
@@ -225,14 +243,15 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None)
 
 def build_odvg(image_set, args, datasetinfo):
     img_folder = datasetinfo["root"]
+    query_folder = datasetinfo["root_query"]
     ann_file = datasetinfo["anno"]
     label_map = datasetinfo["label_map"] if "label_map" in datasetinfo else None
     try:
         strong_aug = args.strong_aug
     except:
         strong_aug = False
-    print(img_folder, ann_file, label_map)
-    dataset = ODVGDataset(img_folder, ann_file, label_map, max_labels=args.max_labels,
+    print(img_folder, query_folder, ann_file, label_map)
+    dataset = ODVGDataset(img_folder, query_folder, ann_file, label_map, max_labels=args.max_labels,
             transforms=make_coco_transforms(image_set, fix_size=args.fix_size, strong_aug=strong_aug, args=args), 
     )
     return dataset

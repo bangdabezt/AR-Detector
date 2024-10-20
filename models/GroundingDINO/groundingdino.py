@@ -21,6 +21,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torchvision.ops.boxes import nms
+from torchvision.ops import roi_align
 from transformers import AutoTokenizer, BertModel, BertTokenizer, RobertaModel, RobertaTokenizerFast
 
 from groundingdino.util import box_ops, get_tokenlizer
@@ -99,6 +100,16 @@ class GroundingDINO(nn.Module):
         # setting query dim
         self.query_dim = query_dim
         assert query_dim == 4
+
+        # visual exemplar cropping
+        self.feature_map_proj = nn.Conv2d(
+            (256 + 512 + 1024), hidden_dim, kernel_size=1
+        )
+        self.feature_map_encoder = TransformerEncoder(
+            3, hidden_dim, 8, 0.1, 1e-5,
+            8, True, nn.GELU, True
+        )
+        self.feature_map_pos_embed = PositionalEncodingsFixed(hidden_dim)
 
         # for dn training
         self.num_patterns = num_patterns
@@ -213,7 +224,74 @@ class GroundingDINO(nn.Module):
     def init_ref_points(self, use_num_queries):
         self.refpoint_embed = nn.Embedding(use_num_queries, self.query_dim)
 
-    def forward(self, samples: NestedTensor, targets: List = None, **kw):
+    def add_exemplar_tokens(self, tokenized, text_dict, exemplar_tokens, labels):
+        input_ids = tokenized["input_ids"]
+        
+        device = input_ids.device
+        new_input_ids = []
+        encoded_text = text_dict["encoded_text"]
+        new_encoded_text = []
+        text_token_mask = text_dict["text_token_mask"]
+        new_text_token_mask = []
+        position_ids = text_dict["position_ids"]
+        text_self_attention_masks = text_dict["text_self_attention_masks"]
+        
+        
+        for sample_ind in range(len(labels)):
+            label = labels[sample_ind][0]
+            exemplars = exemplar_tokens[sample_ind]
+            label_count = -1
+            assert len(input_ids[sample_ind]) == len(position_ids[sample_ind])
+            for token_ind in range(len(input_ids[sample_ind])):
+                input_id = input_ids[sample_ind][token_ind]
+                if (input_id not in self.specical_tokens) and (token_ind == 0 or (input_ids[sample_ind][token_ind - 1] in self.specical_tokens)):
+                    label_count += 1
+                if label_count == label:
+                    # Get the index where to insert the exemplar tokens.
+                    ind_to_insert_exemplar = token_ind
+                    while input_ids[sample_ind][ind_to_insert_exemplar] not in self.specical_tokens:
+                        ind_to_insert_exemplar += 1
+                    break
+            
+            # * token indicates exemplar.
+            new_input_ids.append(torch.cat([input_ids[sample_ind][:ind_to_insert_exemplar], torch.tensor([1008] * exemplars.shape[0]).to(device), input_ids[sample_ind][ind_to_insert_exemplar:]]))
+            new_encoded_text.append(torch.cat([encoded_text[sample_ind][:ind_to_insert_exemplar, :], exemplars, encoded_text[sample_ind][ind_to_insert_exemplar:, :]]))
+            new_text_token_mask.append(torch.full((len(new_input_ids[sample_ind]),), True).to(device)) 
+
+        tokenized['input_ids'] = torch.stack(new_input_ids)
+        
+        text_self_attention_masks, position_ids, _ = generate_masks_with_special_tokens_and_transfer_map(tokenized, self.specical_tokens, None)
+
+
+        return {"encoded_text": torch.stack(new_encoded_text), 
+                "text_token_mask": torch.stack(new_text_token_mask), 
+                "position_ids": position_ids, 
+                "text_self_attention_masks": text_self_attention_masks}
+
+    def combine_features(self, features):
+        
+        (bs, c, h, w) = (features[0].decompose()[0].shape[-4], features[0].decompose()[0].shape[-3], features[0].decompose()[0].shape[-2], features[0].decompose()[0].shape[-1])
+        
+        x = torch.cat([
+            F.interpolate(feat.decompose()[0], size=(h, w), mode='bilinear', align_corners=True)
+            for feat in features
+        ], dim=1)
+        
+        x = self.feature_map_proj(x)
+        
+        #pos_emb = self.feature_map_pos_embed(bs, h, w, x.device)
+        
+        #pos_emb = pos_emb.flatten(2).permute(2, 0, 1)
+        
+        #x = x.flatten(2).permute(2, 0, 1)
+        
+        #x = self.feature_map_encoder(x, pos_emb, src_key_padding_mask=None, src_mask=None)
+        
+        #x = x.permute(1, 2, 0).reshape(-1, self.hidden_dim, h, w)
+        
+        return x
+
+    def forward(self, samples: NestedTensor, queries: NestedTensor, exemplars: List, labels, targets: List = None, **kw):
         """The forward expects a NestedTensor, which consists of:
            - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
            - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
@@ -232,11 +310,13 @@ class GroundingDINO(nn.Module):
             captions = kw["captions"]
         else:
             captions = [t["caption"] for t in targets]
+        
         # encoder texts
 
         tokenized = self.tokenizer(captions, padding="longest", return_tensors="pt").to(
             samples.device
         )
+
         one_hot_token = tokenized
 
         (
@@ -278,6 +358,7 @@ class GroundingDINO(nn.Module):
             text_self_attention_masks = text_self_attention_masks[
                 :, : self.max_text_len, : self.max_text_len
             ]
+        
 
         text_dict = {
             "encoded_text": encoded_text,  # bs, 195, d_model
@@ -286,10 +367,27 @@ class GroundingDINO(nn.Module):
             "text_self_attention_masks": text_self_attention_masks,  # bs, 195,195
         }
 
-
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
+        
         features, poss = self.backbone(samples)
+        # combined_features = self.combine_features(features)
+        
+        ## ------------------------ get features of queries ----------------------------------------------------
+        queries_fts, queries_poss = self.backbone(queries)
+        queries_combined_fts = self.combine_features(queries_fts)
+        
+        # Get visual exemplar tokens.
+        bs = len(exemplars)
+        num_exemplars = exemplars[0].shape[0]
+        if num_exemplars > 0:
+            exemplar_tokens = roi_align(queries_combined_fts, boxes=exemplars, output_size=(1, 1), spatial_scale=(1 / 8), aligned=True).squeeze(-1).squeeze(-1).reshape(bs, num_exemplars, -1)
+        else:
+            exemplar_tokens = None
+
+        if exemplar_tokens is not None:
+            text_dict = self.add_exemplar_tokens(tokenized, text_dict, exemplar_tokens, labels)
+        
         srcs = []
         masks = []
         for l, feat in enumerate(features):
@@ -310,7 +408,7 @@ class GroundingDINO(nn.Module):
                 srcs.append(src)
                 masks.append(mask)
                 poss.append(pos_l)
-
+        
         input_query_bbox = input_query_label = attn_mask = dn_meta = None
         hs, reference, hs_enc, ref_enc, init_box_proposal = self.transformer(
             srcs, masks, input_query_bbox, poss, input_query_label, attn_mask, text_dict

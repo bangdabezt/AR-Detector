@@ -37,14 +37,18 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     _cnt = 0
 
 
-    for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
+    for samples, queries, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
 
         samples = samples.to(device)
+        queries = queries.to(device)
+        # other info
         captions = [t["caption"] for t in targets]
         cap_list = [t["cap_list"] for t in targets]
+        exemplars = [t["exemplars"].to(device) for t in targets]
+        labels_uncropped = [t["labels_uncropped"].to(device) for t in targets]
         targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
         with torch.cuda.amp.autocast(enabled=args.amp):
-            outputs = model(samples, captions=captions)
+            outputs = model(samples, queries, exemplars, labels_uncropped, captions=captions)
             loss_dict = criterion(outputs, targets, cap_list, captions)
 
             weight_dict = criterion.weight_dict
@@ -158,16 +162,21 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     caption = " . ".join(cat_list) + ' .'
     print("Input text prompt:", caption)
 
-    for samples, targets in metric_logger.log_every(data_loader, 10, header, logger=logger):
+    for samples, queries, targets in metric_logger.log_every(data_loader, 10, header, logger=logger):
         samples = samples.to(device)
-
+        queries = queries.to(device)
+        
         targets = [{k: to_device(v, device) for k, v in t.items()} for t in targets]
+        exemplars = [t["exemplars"].to(device) for t in targets]
 
         bs = samples.tensors.shape[0]
-        input_captions = [caption] * bs
+        # input_captions = [caption] * bs
+        input_captions = [cat_list[target['labels'][0]] + " ." for target in targets]
+        print("input_captions: " + str(input_captions))
+        
         with torch.cuda.amp.autocast(enabled=args.amp):
-
-            outputs = model(samples, captions=input_captions)
+            ## add query samples
+            outputs = model(samples, queries, exemplars, [torch.tensor([0]).to(device) for t in targets], captions=input_captions)
 
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
 

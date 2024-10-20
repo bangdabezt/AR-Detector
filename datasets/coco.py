@@ -325,7 +325,7 @@ dataset_hook_register = {
 
 
 class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, transforms, return_masks, aux_target_hacks=None):
+    def __init__(self, img_folder, query_folder, ann_file, transforms, return_masks, aux_target_hacks=None):
         super(CocoDetection, self).__init__(img_folder, ann_file)
         self._transforms = transforms
         self.prepare = ConvertCocoPolysToMask(return_masks)
@@ -375,7 +375,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
             for hack_runner in self.aux_target_hacks:
                 target, img = hack_runner(target, img=img)
 
-        return img, target
+        return img, query, target
 
 
 def convert_coco_poly_to_mask(segmentations, height, width):
@@ -619,18 +619,19 @@ def get_aux_target_hacks_list(image_set, args):
 
 def build(image_set, args, datasetinfo):
     img_folder = datasetinfo["root"]
+    query_folder = datasetinfo["root_query"]
     ann_file = datasetinfo["anno"]
 
     # copy to local path
-    if os.environ.get('DATA_COPY_SHILONG') == 'INFO':
-        preparing_dataset(dict(img_folder=img_folder, ann_file=ann_file), image_set, args)
+    # if os.environ.get('DATA_COPY_SHILONG') == 'INFO':
+    #     preparing_dataset(dict(img_folder=img_folder, ann_file=ann_file), image_set, args)
 
     try:
         strong_aug = args.strong_aug
     except:
         strong_aug = False
-    print(img_folder, ann_file)
-    dataset = CocoDetection(img_folder, ann_file, 
+    print(img_folder, query_folder, ann_file)
+    dataset = CocoDetection(img_folder, query_folder, ann_file, 
             transforms=make_coco_transforms(image_set, fix_size=args.fix_size, strong_aug=strong_aug, args=args), 
             return_masks=args.masks,
             aux_target_hacks=None,
