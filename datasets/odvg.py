@@ -73,7 +73,7 @@ class ODVGDataset(VisionDataset):
         if not os.path.exists(qry_path):
             raise FileNotFoundError(f"{qry_path} not found.")
         query = Image.open(qry_path).convert('RGB')
-        exemplar = torch.tensor(meta["query_file"]["exemplar"], dtype=torch.int64)
+        exemplar = torch.tensor(meta["query_file"]["exemplar"], dtype=torch.float32)
         
         # preprocess data
         if self.dataset_mode == "OD":

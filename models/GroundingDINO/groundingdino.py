@@ -105,11 +105,11 @@ class GroundingDINO(nn.Module):
         self.feature_map_proj = nn.Conv2d(
             (256 + 512 + 1024), hidden_dim, kernel_size=1
         )
-        self.feature_map_encoder = TransformerEncoder(
-            3, hidden_dim, 8, 0.1, 1e-5,
-            8, True, nn.GELU, True
-        )
-        self.feature_map_pos_embed = PositionalEncodingsFixed(hidden_dim)
+        # self.feature_map_encoder = TransformerEncoder(
+        #     3, hidden_dim, 8, 0.1, 1e-5,
+        #     8, True, nn.GELU, True
+        # )
+        # self.feature_map_pos_embed = PositionalEncodingsFixed(hidden_dim)
 
         # for dn training
         self.num_patterns = num_patterns
@@ -376,7 +376,7 @@ class GroundingDINO(nn.Module):
         ## ------------------------ get features of queries ----------------------------------------------------
         queries_fts, queries_poss = self.backbone(queries)
         queries_combined_fts = self.combine_features(queries_fts)
-        
+        # import pdb; pdb.set_trace()
         # Get visual exemplar tokens.
         bs = len(exemplars)
         num_exemplars = exemplars[0].shape[0]

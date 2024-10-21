@@ -384,6 +384,15 @@ def collate_fn(batch):
     # import ipdb; ipdb.set_trace()
     batch = list(zip(*batch))
     batch[0] = nested_tensor_from_tensor_list(batch[0])
+    batch[1] = nested_tensor_from_tensor_list(batch[1])
+    # images = [item[0] for item in batch]  # Main images
+    # query_images = [item[1] for item in batch]  # Query images
+    # dictionaries = [item[2] for item in batch]  # Dictionaries
+
+    # # Convert images and query images into NestedTensor
+    # images_nested = nested_tensor_from_tensor_list(images)
+    # query_images_nested = nested_tensor_from_tensor_list(query_images)
+    # return images_nested, query_images_nested, dictionaries
     return tuple(batch)
 
 

@@ -2,7 +2,7 @@ import json
 
 # Input and output file paths
 input_file = 'test_odvg_exemplars.jsonl'
-output_file = 'ovdg_test.jsonl'
+output_file = 'odvg_test.jsonl'
 
 def reformat_jsonl(input_file, output_file):
     with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:

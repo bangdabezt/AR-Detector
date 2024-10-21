@@ -163,11 +163,13 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     print("Input text prompt:", caption)
 
     for samples, queries, targets in metric_logger.log_every(data_loader, 10, header, logger=logger):
+        # import pdb; pdb.set_trace()
         samples = samples.to(device)
         queries = queries.to(device)
         
-        targets = [{k: to_device(v, device) for k, v in t.items()} for t in targets]
         exemplars = [t["exemplars"].to(device) for t in targets]
+        # labels_uncropped = [t["labels_uncropped"].to(device) for t in targets]
+        targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
 
         bs = samples.tensors.shape[0]
         # input_captions = [caption] * bs
