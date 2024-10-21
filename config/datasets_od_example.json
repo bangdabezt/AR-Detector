@@ -4,7 +4,7 @@
         "root": "./samples/break_a_scene/coco2017/target_set",
         "root_query": "./samples/break_a_scene/coco2017/query_set",
         "anno": "./data/break-a-scene/coco2017/odvg_train.jsonl",
-        "label_map": "./data/break-a-scene/coco2017/label_map.json",
+        "label_map": "./data/break-a-scene/coco2017/train_label_map.json",
         "dataset_mode": "odvg"
       }
     ],
@@ -13,7 +13,7 @@
         "root": "./samples/break_a_scene/coco2017/target_set",
         "root_query": "./samples/break_a_scene/coco2017/query_set",
         "anno": "./data/break-a-scene/coco2017/odvg_val.jsonl",
-        "label_map":  "./data/break-a-scene/coco2017/label_map.json",
+        "label_map":  "./data/break-a-scene/coco2017/val_label_map.json",
         "dataset_mode": "odvg"
       }
     ]

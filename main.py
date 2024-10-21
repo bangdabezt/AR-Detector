@@ -282,7 +282,7 @@ def main(args):
         epoch_start_time = time.time()
         if args.distributed:
             sampler_train.set_epoch(epoch)
-
+        # import pdb; pdb.set_trace()
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
             args.clip_max_norm, wo_class_error=wo_class_error, lr_scheduler=lr_scheduler, args=args, logger=(logger if args.save_log else None))
@@ -306,7 +306,7 @@ def main(args):
                 }
 
                 utils.save_on_master(weights, checkpoint_path)
-                
+
         # eval
         test_stats, coco_evaluator = evaluate(
             model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,

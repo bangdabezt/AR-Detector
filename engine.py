@@ -38,7 +38,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
     for samples, queries, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
-
+        # import pdb; pdb.set_trace()
         samples = samples.to(device)
         queries = queries.to(device)
         # other info
@@ -163,7 +163,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     print("Input text prompt:", caption)
 
     for samples, queries, targets in metric_logger.log_every(data_loader, 10, header, logger=logger):
-        # import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         samples = samples.to(device)
         queries = queries.to(device)
         

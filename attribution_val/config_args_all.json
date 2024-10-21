@@ -14,7 +14,7 @@
   "pretrain_model_path": "checkpoints/checkpoint_fsc147_best.pth",
   "finetune_ignore": null,
   "start_epoch": 0,
-  "eval": true,
+  "eval": false,
   "num_workers": 8,
   "test": false,
   "debug": false,
@@ -51,7 +51,7 @@
     600
   ],
   "data_aug_scale_overlap": null,
-  "batch_size": 4,
+  "batch_size": 1,
   "modelname": "groundingdino",
   "backbone": "swin_B_384_22k",
   "position_embedding": "sine",

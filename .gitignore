@@ -12,6 +12,9 @@ samples/*
 # model checkpoints
 checkpoints/*
 
+# model checkpoints
+attribution_val/*.pth
+
 # Distribution / packaging
 .Python
 build/

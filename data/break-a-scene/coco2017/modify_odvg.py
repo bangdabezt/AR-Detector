@@ -16,6 +16,7 @@ def reformat_jsonl(input_file, output_file):
 
             # Create the 'query_file' dictionary
             query_file = {
+                'image_id': None,
                 'filename': data['filename'],
                 'height': data['height'],
                 'width': data['width'],

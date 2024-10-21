@@ -133,6 +133,8 @@ class ODVGDataset(VisionDataset):
             assert target['labels'][0] == target['labels_uncropped'][0]
             print('asserted')
         # size, cap_list, caption, bboxes, labels
+        target["orig_size"] = torch.as_tensor([int(h), int(w)])
+        target["size"] = torch.as_tensor([int(h), int(w)])
 
         if self.transforms is not None:
             image, target = self.transforms(image, target)
