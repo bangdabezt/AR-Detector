@@ -327,6 +327,7 @@ dataset_hook_register = {
 class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, query_folder, ann_file, transforms, return_masks, aux_target_hacks=None):
         super(CocoDetection, self).__init__(img_folder, ann_file)
+        raise ValueError("Not implemented!")
         self._transforms = transforms
         self.prepare = ConvertCocoPolysToMask(return_masks)
         self.aux_target_hacks = aux_target_hacks
@@ -357,6 +358,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
                     Init type: x0,y0,x1,y1. unnormalized data.
                     Final type: cx,cy,w,h. normalized data. 
         """
+        raise ValueError("Not implemented!")
         try:
             img, target = super(CocoDetection, self).__getitem__(idx)
         except:
