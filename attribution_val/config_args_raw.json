@@ -14,7 +14,7 @@
   "pretrain_model_path": "checkpoints/checkpoint_fsc147_best.pth",
   "finetune_ignore": null,
   "start_epoch": 0,
-  "eval": false,
+  "eval": true,
   "num_workers": 8,
   "test": false,
   "debug": false,
