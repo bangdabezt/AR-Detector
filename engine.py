@@ -135,7 +135,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         useCats = True
     if not useCats:
         print("useCats: {} !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!".format(useCats))
-    
+    # base_ds is none -> fix ??? #####
     coco_evaluator = CocoGroundingEvaluator(base_ds, iou_types, useCats=useCats)
 
 
@@ -163,7 +163,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     print("Input text prompt:", caption)
 
     for samples, queries, targets in metric_logger.log_every(data_loader, 10, header, logger=logger):
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         samples = samples.to(device)
         queries = queries.to(device)
         
@@ -189,7 +189,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
             
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
-
+        import pdb; pdb.set_trace()
         if coco_evaluator is not None:
             coco_evaluator.update(res)
 

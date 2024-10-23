@@ -74,7 +74,7 @@ class ODVGDataset(VisionDataset):
             raise FileNotFoundError(f"{qry_path} not found.")
         query = Image.open(qry_path).convert('RGB')
         exemplar = torch.tensor(meta["query_file"]["exemplar"], dtype=torch.float32)
-        
+        img_id = torch.tensor(meta["query_file"]["image_id"], dtype=torch.int64)
         # preprocess data
         if self.dataset_mode == "OD":
             anno = meta["detection"]
@@ -135,6 +135,7 @@ class ODVGDataset(VisionDataset):
         # size, cap_list, caption, bboxes, labels
         target["orig_size"] = torch.as_tensor([int(h), int(w)])
         target["size"] = torch.as_tensor([int(h), int(w)])
+        target["image_id"] = img_id
 
         if self.transforms is not None:
             image, target = self.transforms(image, target)

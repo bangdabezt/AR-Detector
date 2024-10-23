@@ -204,7 +204,7 @@ def main(args):
     data_loader_val = DataLoader(dataset_val, 4, sampler=sampler_val,
                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
     # for img, qry, targ in data_loader_val:
-    #     import pdb; pdb.set_trace()
+    import pdb; pdb.set_trace()
     if args.onecyclelr:
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=args.lr, steps_per_epoch=len(data_loader_train), epochs=args.epochs, pct_start=0.2)
     elif args.multi_step_lr:
