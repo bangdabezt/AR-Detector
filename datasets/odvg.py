@@ -30,6 +30,7 @@ class ODVGDataset(VisionDataset):
         query_root: str,
         anno: str,
         label_map_anno: str = None,
+        image_set: str = None,
         max_labels: int = 80,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
@@ -44,6 +45,13 @@ class ODVGDataset(VisionDataset):
             self.load_label_map(label_map_anno)
         self._load_metas(anno)
         self.get_dataset_info()
+        # self.coco = None
+        if image_set == 'val':
+            self.coco = self.load_coco_gt(anno)
+        else: self.coco = None
+
+    def load_coco_gt(self, anno):
+        pass
 
     def load_label_map(self, label_map_anno):
         with open(label_map_anno, 'r') as file:
@@ -254,7 +262,7 @@ def build_odvg(image_set, args, datasetinfo):
     except:
         strong_aug = False
     print(img_folder, query_folder, ann_file, label_map)
-    dataset = ODVGDataset(img_folder, query_folder, ann_file, label_map, max_labels=args.max_labels,
+    dataset = ODVGDataset(img_folder, query_folder, ann_file, label_map, image_set=image_set, max_labels=args.max_labels,
             transforms=make_coco_transforms(image_set, fix_size=args.fix_size, strong_aug=strong_aug, args=args), 
     )
     return dataset
