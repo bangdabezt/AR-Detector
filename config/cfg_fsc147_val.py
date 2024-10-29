@@ -114,5 +114,5 @@ dn_scalar = 100
 box_threshold = 0.23
 text_threshold = 0
 use_coco_eval = False
-label_list = ['elephant', 'sheep', 'zebra', 'horse', 'cow', 'teddy bear', 'bird', 'cat', 'bear', 'dog']
+label_list = ['bear', 'cat', 'horse', 'bird', 'dog', 'cow', 'teddy bear', 'zebra', 'sheep', 'elephant']
 val_label_list = []

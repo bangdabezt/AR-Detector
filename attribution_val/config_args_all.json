@@ -182,16 +182,16 @@
   "text_threshold": 0,
   "use_coco_eval": false,
   "label_list": [
-    "elephant",
-    "sheep",
-    "zebra",
+    "bear",
+    "cat",
     "horse",
+    "bird",
+    "dog",
     "cow",
     "teddy bear",
-    "bird",
-    "cat",
-    "bear",
-    "dog"
+    "zebra",
+    "sheep",
+    "elephant"
   ],
   "val_label_list": []
 }

@@ -185,7 +185,7 @@ def main(args):
         logger.debug(f'number of training dataset: {num_of_dataset_train}, samples: {len(dataset_train)}')
 
     dataset_val = build_dataset(image_set='val', args=args, datasetinfo=dataset_meta["val"][0])
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     if args.distributed:
         sampler_val = DistributedSampler(dataset_val, shuffle=False)
         if not args.eval:

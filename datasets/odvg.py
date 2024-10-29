@@ -55,7 +55,7 @@ class ODVGDataset(VisionDataset):
             self.valid_flag = False
 
     def load_coco_gt(self, anno):
-        self.cap_dict = {}
+        # self.cap_dict = {}
         # Initialize COCO-style dictionaries
         coco_format = {
             "images": [],
@@ -122,12 +122,13 @@ class ODVGDataset(VisionDataset):
                 }
                 coco_format["annotations"].append(annotation)
                 # annotation_id += 1
-
+        # caption dictionary with index
+        self.cap_dict = {item: index for index, item in enumerate(category_mapping.keys())}
         # Save the result to a new JSON file in COCO format
         output_file = os.path.join(".", "temp.json")
         with open(output_file, 'w') as f:
             json.dump(coco_format, f, indent=4)
-
+        
         print(f"COCO annotations saved to {output_file}")
         return COCO(output_file)
 
@@ -214,13 +215,13 @@ class ODVGDataset(VisionDataset):
         target["boxes"] = boxes
         if not self.valid_flag:
             target["labels"] = classes # wrong labels => why??? labels were shuffled during training?
+            target["labels_uncropped"] = torch.clone(classes)
+            if len(target['labels']) > 0: # and (not self.valid_flag):
+                assert target['labels'][0] == target['labels_uncropped'][0]
         else:
             target["labels"] = torch.tensor([self.cap_dict[self.label_map[str(obj["label"])]] for obj in instances], dtype=torch.int64)
         target["exemplars"] = exemplar
-        target["labels_uncropped"] = torch.clone(classes)
-        if len(target['labels']) > 0:
-            assert target['labels'][0] == target['labels_uncropped'][0]
-            # print('asserted')
+        # print('asserted')
         # size, cap_list, caption, bboxes, labels
         target["orig_size"] = torch.as_tensor([int(h), int(w)])
         target["size"] = torch.as_tensor([int(h), int(w)])
