@@ -19,7 +19,7 @@
   "test": false,
   "debug": false,
   "find_unused_params": false,
-  "save_results": false,
+  "save_results": true,
   "save_log": false,
   "world_size": 1,
   "dist_url": "env://",

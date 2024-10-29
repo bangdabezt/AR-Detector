@@ -3,7 +3,7 @@ data_aug_max_size = 1333
 data_aug_scales2_resize = [400, 500, 600]
 data_aug_scales2_crop = [384, 600]
 data_aug_scale_overlap = None
-batch_size = 1
+batch_size = 2
 modelname = 'groundingdino'
 backbone = 'swin_B_384_22k'
 position_embedding = 'sine'
@@ -114,27 +114,7 @@ box_threshold = 0.23
 text_threshold = 0
 use_coco_eval = False
 label_list = [
-    'alcohol bottle', 'baguette roll', 'ball', 'banana', 'bead', 'bee',
-    'birthday candle', 'biscuit', 'boat', 'bottle', 'bowl', 'box',
-    'bread roll', 'brick', 'buffalo', 'bun', 'calamari ring', 'can', 'candle',
-    'cap', 'car', 'cartridge', 'cassette', 'cement bag', 'cereal',
-    'chewing gum piece', 'chopstick', 'clam', 'coffee bean', 'coin',
-    'cotton ball', 'cow', 'crane', 'crayon', 'croissant', 'crow', 'cup',
-    'cupcake', 'cupcake holder', 'fish', 'gemstone', 'go game piece', 'goat',
-    'goldfish snack', 'goose', 'ice cream', 'ice cream cone', 'instant noodle',
-    'jade stone', 'jeans', 'kidney bean', 'kitchen towel', 'lighter',
-    'lipstick', 'm&m piece', 'macaron', 'match', 'meat skewer', 'mini blind',
-    'mosaic tile', 'naan bread', 'nail', 'nut', 'onion ring', 'orange',
-    'pearl', 'pen', 'pencil', 'penguin', 'pepper', 'person', 'pigeon', 'plate',
-    'polka dot tile', 'potato', 'rice bag', 'roof tile', 'screw', 'shoe',
-    'spoon', 'spring roll', 'stair', 'stapler pin', 'straw',
-    'supermarket shelf', 'swan', 'tomato', 'watermelon', 'window', 'zebra'
+    'elephant', 'sheep', 'zebra', 'horse', 'cow', 'teddy bear', 'bird', 'cat',
+    'bear', 'dog'
 ]
-val_label_list = [
-    'ant', 'bird', 'book', 'bottle cap', 'bullet', 'camel', 'chair',
-    'chicken wing', 'donut', 'donut holder', 'flamingo', 'flower',
-    'flower pot', 'grape', 'horse', 'kiwi', 'milk carton', 'oyster',
-    'oyster shell', 'package of fresh cut fruit', 'peach', 'pill', 'polka dot',
-    'prawn cracker', 'sausage', 'seagull', 'shallot', 'shirt', 'skateboard',
-    'toilet paper roll'
-]
+val_label_list = []

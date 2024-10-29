@@ -163,7 +163,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     print("Input text prompt:", caption)
 
     for samples, queries, targets in metric_logger.log_every(data_loader, 10, header, logger=logger):
-        # import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         samples = samples.to(device)
         queries = queries.to(device)
         

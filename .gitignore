@@ -13,7 +13,11 @@ samples/*
 checkpoints/*
 
 # model checkpoints
-attribution_val/*.pth
+# attribution_val/*.pth
+# attribution_train/*.pth
+# attribution_train/eval/*.pth
+attribution_val/*
+attribution_train/*
 
 # Distribution / packaging
 .Python
