@@ -10,7 +10,7 @@ def get_coco_api_from_dataset(dataset):
         #     break
         if isinstance(dataset, torch.utils.data.Subset):
             dataset = dataset.dataset
-    if isinstance(dataset, torchvision.datasets.CocoDetection) or isinstance(dataset, ODVGDataset):
+    if isinstance(dataset, torchvision.datasets.CocoDetection): # or isinstance(dataset, ODVGDataset):
         return dataset.coco
 
 def build_dataset(image_set, args, datasetinfo):

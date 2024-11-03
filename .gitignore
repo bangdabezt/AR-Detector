@@ -18,6 +18,7 @@ checkpoints/*
 # attribution_train/eval/*.pth
 attribution_val/*
 attribution_train/*
+attribution_eval/*
 
 # Distribution / packaging
 .Python

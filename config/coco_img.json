@@ -1,0 +1,20 @@
+{
+    "train": [
+      {
+        "root": "./samples/break_a_scene/coco2017/target_set",
+        "root_query": "./samples/break_a_scene/coco2017/query_set",
+        "anno": "./data/break-a-scene/coco2017/official_data/train_filename.jsonl",
+        "label_map": "./data/break-a-scene/coco2017/official_data/label_map.json",
+        "dataset_mode": "odvg"
+      }
+    ],
+    "val": [
+      {
+        "root": "./samples/break_a_scene/coco2017/target_set",
+        "root_query": "./samples/break_a_scene/coco2017/query_set",
+        "anno": "./data/break-a-scene/coco2017/official_data/anno_filename.json",
+        "label_map":  null,
+        "dataset_mode": "coco"
+      }
+    ]
+  }

@@ -327,10 +327,11 @@ dataset_hook_register = {
 class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, query_folder, ann_file, transforms, return_masks, aux_target_hacks=None):
         super(CocoDetection, self).__init__(img_folder, ann_file)
-        raise ValueError("Not implemented!")
+        # raise ValueError("Not implemented!")
         self._transforms = transforms
         self.prepare = ConvertCocoPolysToMask(return_masks)
         self.aux_target_hacks = aux_target_hacks
+        self.query_folder = query_folder
 
     def change_hack_attr(self, hackclassname, attrkv_dict):
         target_class = dataset_hook_register[hackclassname]
@@ -358,7 +359,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
                     Init type: x0,y0,x1,y1. unnormalized data.
                     Final type: cx,cy,w,h. normalized data. 
         """
-        raise ValueError("Not implemented!")
+        # raise ValueError("Not implemented!")
         try:
             img, target = super(CocoDetection, self).__getitem__(idx)
         except:
@@ -367,16 +368,34 @@ class CocoDetection(torchvision.datasets.CocoDetection):
             img, target = super(CocoDetection, self).__getitem__(idx)
         image_id = self.ids[idx]
         target = {'image_id': image_id, 'annotations': target}
+
+        # get the exemplars before call .prepare() function
+        exemplars = [obj['query_file']['exemplar'][0] for obj in target['annotations']]
+        query_files = [obj['query_file']['filename'] for obj in target['annotations']]
+        assert len(exemplars) == 1 or len(query_files) == 1 # only allow one exemplar at the moment
+
         img, target = self.prepare(img, target)
         
+        # update dataset
+        target['exemplars'] = torch.tensor(exemplars, dtype=torch.float32)
+        target["labels_uncropped"] = torch.clone(target["labels"])
+        # get query image 
+        qry_path = os.path.join(self.query_folder, query_files[0])
+        if not os.path.exists(qry_path):
+            raise FileNotFoundError(f"{qry_path} not found.")
+        query = Image.open(qry_path).convert('RGB')
+        query_anno = {}
+
         if self._transforms is not None:
             img, target = self._transforms(img, target)
+            query, query_anno = self._transforms(query, query_anno)
 
         # convert to needed format
         if self.aux_target_hacks is not None:
             for hack_runner in self.aux_target_hacks:
                 target, img = hack_runner(target, img=img)
-
+                query_anno, query = hack_runner(query_anno, img=query)
+        
         return img, query, target
 
 

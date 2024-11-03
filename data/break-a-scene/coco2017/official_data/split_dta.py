@@ -28,13 +28,13 @@ val_lines = original_lines[train_index:val_index]
 test_lines = original_lines[val_index:]
 
 # Write the splits to new JSONL files
-with open('train.jsonl', 'w') as file:
+with open('train_random.jsonl', 'w') as file:
     file.writelines(train_lines)
 
-with open('val.jsonl', 'w') as file:
+with open('val_random.jsonl', 'w') as file:
     file.writelines(val_lines)
 
-with open('test.jsonl', 'w') as file:
+with open('test_random.jsonl', 'w') as file:
     file.writelines(test_lines)
 
 category_mapping = {}

@@ -47,12 +47,12 @@ class ODVGDataset(VisionDataset):
         self._load_metas(anno)
         self.get_dataset_info()
         # self.coco = None
-        if image_set == 'val':
-            self.coco = self.load_coco_gt(anno)
-            self.valid_flag = True
-        else: 
-            self.coco = None
-            self.valid_flag = False
+        # if image_set == 'val':
+        #     self.coco = self.load_coco_gt(anno)
+        #     self.valid_flag = True
+        # else: 
+        #     self.coco = None
+        #     self.valid_flag = False
 
     def load_coco_gt(self, anno):
         # self.cap_dict = {}
@@ -213,13 +213,13 @@ class ODVGDataset(VisionDataset):
         target["cap_list"] = caption_list
         target["caption"] = caption
         target["boxes"] = boxes
-        if not self.valid_flag:
-            target["labels"] = classes # wrong labels => why??? labels were shuffled during training?
-            target["labels_uncropped"] = torch.clone(classes)
-            if len(target['labels']) > 0: # and (not self.valid_flag):
-                assert target['labels'][0] == target['labels_uncropped'][0]
-        else:
-            target["labels"] = torch.tensor([self.cap_dict[self.label_map[str(obj["label"])]] for obj in instances], dtype=torch.int64)
+        # if not self.valid_flag:
+        target["labels"] = classes # wrong labels => why??? labels were shuffled during training?
+        target["labels_uncropped"] = torch.clone(classes)
+        if len(target['labels']) > 0: # and (not self.valid_flag):
+            assert target['labels'][0] == target['labels_uncropped'][0]
+        # else:
+        #     target["labels"] = torch.tensor([self.cap_dict[self.label_map[str(obj["label"])]] for obj in instances], dtype=torch.int64)
         target["exemplars"] = exemplar
         # print('asserted')
         # size, cap_list, caption, bboxes, labels

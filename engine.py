@@ -135,7 +135,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         useCats = True
     if not useCats:
         print("useCats: {} !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!".format(useCats))
-    # base_ds is none -> fix ??? #####
+    # 
     coco_evaluator = CocoGroundingEvaluator(base_ds, iou_types, useCats=useCats)
 
 
@@ -187,9 +187,21 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         if 'segm' in postprocessors.keys():
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)
             results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
-            
+        ## test res
+        # temp_results = []
+        # for out in results:
+        #     my_out = {key: value[:10] for key, value in out.items()}
+        #     temp_results.append(my_out)
+        # results = temp_results
+        ##
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
         # import pdb; pdb.set_trace()
+        ## test res
+        # for indx, key_id in enumerate(res.keys()):
+        #     # res[key_id]['labels'][0] = targets[indx]['labels'][0].item()
+        #     for lb_id in range(len(res[key_id]['labels'])):
+        #         res[key_id]['labels'][lb_id] = targets[indx]['labels'][0].item()
+        ## continue
         if coco_evaluator is not None:
             coco_evaluator.update(res)
 

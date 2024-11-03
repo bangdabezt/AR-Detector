@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=1 python -u main.py --save_results --output_dir ./attribution_img -c config/coco_img.py --datasets config/coco_img.json --pretrain_model_path checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased

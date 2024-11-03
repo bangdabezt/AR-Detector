@@ -2,7 +2,7 @@ import os
 import torch
 
 # Replace with the actual path to your .pkl file
-file_path = os.path.join('.', 'attribution_val', 'results-0.pkl')
+file_path = os.path.join('.', 'attribution_eval', 'results-0.pkl')
 
 # Use torch.load to load the data
 data = torch.load(file_path)
