@@ -52,6 +52,8 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
+    parser.add_argument('--eval_mode', default='all_negatives', type=str,
+                        help='mode for testing attribution over negative samples')
     parser.add_argument('--num_workers', default=8, type=int)
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--debug', action='store_true')
@@ -272,7 +274,7 @@ def main(args):
                 f.write(json.dumps(log_stats) + "\n")
 
         return
-    
+# with (os.path.join(output_dir, "res.txt")).open("a") as f: f.write(json.dumps(all_results[0]) + "\n")
  
     
     print("Start training")

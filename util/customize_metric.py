@@ -9,6 +9,13 @@ def calculate_iou(box1, box2):
     union = area1 + area2 - intersection
     return intersection / union if union > 0 else 0
 
+def summarize_ap(list_all_preds, list_all_gts, iou_threshold=0.5, score_threshold=0.5):
+    all_ap = []
+    for preds, gts in zip(list_all_preds, list_all_gts):
+        sample_ap = calculate_ap(preds, gts, iou_threshold, score_threshold)
+        all_ap.append(sample_ap)
+    return sum(all_ap) / len(all_ap)
+
 def calculate_ap(predictions, ground_truths, iou_threshold=0.5, score_threshold=0.5):
     """
     Calculate Average Precision (AP) for a set of predictions.
@@ -16,7 +23,7 @@ def calculate_ap(predictions, ground_truths, iou_threshold=0.5, score_threshold=
     :param predictions: List of predictions, each with bounding box coordinates and score.
     [[x_min, y_min, x_max, y_max, score, ...], ...]
     :param ground_truths: List of ground truth bounding boxes.
-    [[x_min, y_min, x_max, y_max, score, ...]]
+    [[x_min, y_min, x_max, y_max, ...]]
     :param iou_threshold: IoU threshold for positive sample classification.
     :param score_threshold: Score threshold for determining positive vs. negative prediction.
     :return: Average Precision (AP) score.
@@ -61,12 +68,13 @@ def calculate_ap(predictions, ground_truths, iou_threshold=0.5, score_threshold=
                 true_negatives.append(0)
 
     # Cumulative sum to calculate precision and recall at each prediction
-    true_positives = np.cumsum(true_positives)
-    false_positives = np.cumsum(false_positives)
-    
-    precision = true_positives / (true_positives + false_positives + 1e-6)
-
-    # Calculate Average Precision (AP) as the area under the Precision-Recall curve
+    # true_positives = np.cumsum(true_positives)
+    # false_positives = np.cumsum(false_positives)
+    TP = 1.0 * sum(true_positives)
+    FP = 1.0 * sum(false_positives)
+    precision = TP / (TP + FP + 1e-6)
+    # recall = true_positives / num_pos
+    # # Calculate Average Precision (AP) as the area under the Precision-Recall curve
     # ap = np.trapz(precision, recall)
     
     return precision

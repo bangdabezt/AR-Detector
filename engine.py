@@ -16,7 +16,8 @@ from datasets.coco_eval import CocoEvaluator
 from datasets.cocogrounding_eval import CocoGroundingEvaluator
 
 from datasets.panoptic_eval import PanopticEvaluator
-
+import json
+import util.customize_metric as cmetric
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -38,7 +39,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
     for samples, queries, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
-        # import pdb; pdb.set_trace()
         samples = samples.to(device)
         queries = queries.to(device)
         # other info
@@ -115,6 +115,63 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         resstat.update({f'weight_{k}': v for k,v in criterion.weight_dict.items()})
     return resstat
 
+@torch.no_grad()
+def test_negatives(model, postprocessors, dataset, pos_results, targets, exemplars, captions, args=None):
+    model.eval()
+    device = torch.device(args.device)
+    neg_bs = 4
+    def postprocess_res(result, limit_num_pred = 1):
+        """
+        Input:
+            - result: dict of torch.tensor {'scores', 'labels', 'boxes'}
+            - limit_num_pred: number of prediction to retain in result
+        Output: List of boxes combined with scores
+        """
+        all_boxes = result['boxes'][:limit_num_pred].tolist()
+        all_scores = result['scores'][:limit_num_pred].tolist()
+        combined_result = [(all_boxes[idx] + [all_scores[idx]]) for idx in range(limit_num_pred)]
+        return combined_result
+
+    all_results = []
+    all_gt_boxes = []
+    for pos_index, target in enumerate(targets):
+        ## first of all, get the result of positive sample
+        sample_result = []
+        sample_result.extend(postprocess_res(pos_results[pos_index]))
+        ## process for negative samples
+        img_id = target['image_id'].item()
+        if args.eval_mode == 'all_negatives':
+            neg_images, neg_anns, pos_query, gt_bboxes = dataset.get_all_negatives(img_id, args.seed)
+        elif args.eval_mode == 'hard_negatives':
+            neg_images, neg_anns, pos_query, gt_bboxes = dataset.get_hard_negatives(img_id, target['labels'].item())
+        else:
+            raise ValueError("'eval_mode' hasn't supported value {}".format(args.eval_mode))
+
+        # neg_queries = utils.nested_tensor_from_tensor_list([pos_query for _ in range(neg_bs)]).to(device)
+        # neg_exemplars = [exemplars[pos_index] for _ in range(neg_bs)]
+        for neg_index in range(0, len(neg_anns), neg_bs):
+            print(neg_index)
+            # if neg_index > 30: break 
+            # import pdb; pdb.set_trace()
+            # test with hard negatives only
+            temp_neg_bs = len(neg_images[neg_index: neg_index + neg_bs])
+            neg_queries = utils.nested_tensor_from_tensor_list([pos_query for _ in range(temp_neg_bs)]).to(device)
+            neg_exemplars = [exemplars[pos_index] for _ in range(temp_neg_bs)]
+            neg_samples = utils.nested_tensor_from_tensor_list(neg_images[neg_index: neg_index + neg_bs]).to(device)
+            with torch.cuda.amp.autocast(enabled=args.amp):
+                outputs = model(neg_samples, neg_queries, neg_exemplars, [torch.tensor([0]).to(device) for _ in range(temp_neg_bs)], captions=[captions[pos_index] for _ in range(temp_neg_bs)])
+        
+            orig_target_sizes = torch.stack([t["orig_size"].to(device) for t in neg_anns[neg_index: neg_index + temp_neg_bs]], dim=0)
+
+            results = postprocessors['bbox'](outputs, orig_target_sizes)
+            for index in range(temp_neg_bs):
+                sample_result.extend(postprocess_res(results[index]))
+        
+        ## Update all results
+        all_results.append(sample_result)
+        all_gt_boxes.append(gt_bboxes)
+    return all_results, all_gt_boxes
+
 
 @torch.no_grad()
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, wo_class_error=False, args=None, logger=None):
@@ -154,16 +211,16 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         from pycocotools.coco import COCO
         coco = COCO(args.coco_val_path)
 
-        # 获取所有类别
+        #
         category_dict = coco.loadCats(coco.getCatIds())
         cat_list = [item['name'] for item in category_dict]
     else:
         cat_list=args.label_list
     caption = " . ".join(cat_list) + ' .'
     print("Input text prompt:", caption)
-
+    customized_results = []
+    all_gt_bboxes = []
     for samples, queries, targets in metric_logger.log_every(data_loader, 10, header, logger=logger):
-        # import pdb; pdb.set_trace()
         samples = samples.to(device)
         queries = queries.to(device)
         
@@ -183,6 +240,19 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
 
         results = postprocessors['bbox'](outputs, orig_target_sizes)
+        #### Process for negative samples -----------------------------------------------------------------------------------------------------------
+        import pdb; pdb.set_trace()
+        all_results, all_gt_boxes = test_negatives(model, postprocessors, data_loader.dataset, results, 
+                                                    targets, exemplars, input_captions, args)
+        for sid in range(bs):
+            save_res = {
+                "results": all_results[sid],
+                "gt_box": all_gt_boxes[sid]
+            }
+            with open(os.path.join(output_dir, "res_{}.txt".format(args.eval_mode)), "a") as f:  # Use open() directly
+                f.write(json.dumps(save_res) + "\n")
+        # customized_results.extend(all_results)
+        # all_gt_bboxes.extend(all_gt_boxes)
         # [scores: [100], labels: [100], boxes: [100, 4]] x B
         if 'segm' in postprocessors.keys():
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)

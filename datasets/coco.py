@@ -332,6 +332,26 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         self.prepare = ConvertCocoPolysToMask(return_masks)
         self.aux_target_hacks = aux_target_hacks
         self.query_folder = query_folder
+        self.map_id_filename = self.build_map_id_filename(ann_file)
+        self.map_class_id = self.build_map_class_id(ann_file)
+    
+    def build_map_id_filename(self, ann_file):
+        map_id_filename = {}
+        with open(ann_file, 'r') as ann_f:
+            img_data = json.load(ann_f)["images"]
+        for img_ann in img_data:
+            map_id_filename[img_ann["id"]] = img_ann["file_name"]
+        return map_id_filename
+
+    def build_map_class_id(self, ann_file):
+        map_class_id = {}
+        with open(ann_file, 'r') as ann_f:
+            data = json.load(ann_f)
+        for cat_data in data["categories"]:
+            map_class_id[cat_data["id"]] = []
+        for ann_data in data["annotations"]:
+            map_class_id[ann_data["category_id"]].append(ann_data["image_id"])
+        return map_class_id
 
     def change_hack_attr(self, hackclassname, attrkv_dict):
         target_class = dataset_hook_register[hackclassname]
@@ -350,6 +370,99 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         path = self.coco.loadImgs(id)[0]["file_name"]
         abs_path = os.path.join(self.root, path)
         return Image.open(abs_path).convert("RGB")
+
+    def get_all_negatives(self, id: int, seed: int, num_neg=99):
+        ## firstly, remove positive sample with given id
+        all_neg_idx = []
+        for idx in range(len(self.ids)):
+            temp_img_id = self.ids[idx]
+            if temp_img_id != id:
+                if self.map_id_filename[temp_img_id] != self.map_id_filename[id]:
+                    all_neg_idx.append(idx)
+            else: 
+                pos_query = self.__getitem__(idx)[1]
+                # get the groundtruth
+                gt_img, gt_target = super(CocoDetection, self).__getitem__(idx)
+                gt_bbox = []
+                for gt in gt_target:
+                    gt_bbox.append([gt['bbox'][0], gt['bbox'][1], gt['bbox'][0] + gt['bbox'][2], gt['bbox'][1] + gt['bbox'][3]])
+        # randomly sample 99 negative samples to test, remember to save all of them
+        random.seed(seed)
+        all_neg_idx = random.sample(all_neg_idx, num_neg)
+        # assert len(all_neg_idx) == (len(self.ids) - 1) # assure that positive sample is removed
+        # then get all img from CocoDetection
+        negative_dataset = [] # list of all images in shape [3, 800, 800]
+        anno_list = []
+        for idx in all_neg_idx:
+            try:
+                img, target = super(CocoDetection, self).__getitem__(idx)
+            except:
+                # raise ValueError("idx not found!")
+                continue
+            img_id = self.ids[idx]
+            target = {'image_id': img_id, 'annotations': target}
+            # prepare data
+            img, target = self.prepare(img, target)
+            ## process the img only
+            if self._transforms is not None:
+                img, target = self._transforms(img, target)
+
+            # convert to needed format
+            if self.aux_target_hacks is not None:
+                for hack_runner in self.aux_target_hacks:
+                    target, img = hack_runner(target, img=img)
+            
+            ## add this sample to neg_dataset
+            negative_dataset.append(img)
+            anno_list.append(target)
+        assert len(negative_dataset) == len(all_neg_idx)
+
+        return negative_dataset, anno_list, pos_query, gt_bbox
+    
+    def get_hard_negatives(self, id: int, label: int):
+        ## firstly, remove positive sample with given id
+        assert id in self.map_class_id[label]
+        all_neg_idx = []
+        for idx in range(len(self.ids)):
+            temp_img_id = self.ids[idx]
+            if temp_img_id != id:
+                if (self.map_id_filename[temp_img_id] != self.map_id_filename[id]) and (temp_img_id in self.map_class_id[label]):
+                    all_neg_idx.append(idx)
+            else: 
+                pos_query = self.__getitem__(idx)[1]
+                # get the groundtruth
+                gt_img, gt_target = super(CocoDetection, self).__getitem__(idx)
+                gt_bbox = []
+                for gt in gt_target:
+                    gt_bbox.append([gt['bbox'][0], gt['bbox'][1], gt['bbox'][0] + gt['bbox'][2], gt['bbox'][1] + gt['bbox'][3]])
+        # then get all negative imgs from CocoDetection
+        negative_dataset = [] # list of all images in shape [3, 800, 800]
+        anno_list = []
+        for idx in all_neg_idx:
+            try:
+                img, target = super(CocoDetection, self).__getitem__(idx)
+            except:
+                # raise ValueError("idx not found!")
+                continue
+            img_id = self.ids[idx]
+            target = {'image_id': img_id, 'annotations': target}
+            # prepare data
+            img, target = self.prepare(img, target)
+            ## process the img only
+            if self._transforms is not None:
+                img, target = self._transforms(img, target)
+
+            # convert to needed format
+            if self.aux_target_hacks is not None:
+                for hack_runner in self.aux_target_hacks:
+                    target, img = hack_runner(target, img=img)
+            
+            ## add this sample to neg_dataset
+            negative_dataset.append(img)
+            anno_list.append(target)
+        assert len(negative_dataset) == len(all_neg_idx)
+
+        return negative_dataset, anno_list, pos_query, gt_bbox
 
     def __getitem__(self, idx):
         """
