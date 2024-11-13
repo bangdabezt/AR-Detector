@@ -374,11 +374,13 @@ class CocoDetection(torchvision.datasets.CocoDetection):
     def get_all_negatives(self, id: int, seed: int, num_neg=99):
         ## firstly, remove positive sample with given id
         all_neg_idx = []
+        unique_filename = [self.map_id_filename[id]]
         for idx in range(len(self.ids)):
             temp_img_id = self.ids[idx]
             if temp_img_id != id:
-                if self.map_id_filename[temp_img_id] != self.map_id_filename[id]:
+                if self.map_id_filename[temp_img_id] not in unique_filename:
                     all_neg_idx.append(idx)
+                    unique_filename.append(self.map_id_filename[temp_img_id])
             else: 
                 pos_query = self.__getitem__(idx)[1]
                 # get the groundtruth
@@ -387,8 +389,8 @@ class CocoDetection(torchvision.datasets.CocoDetection):
                 for gt in gt_target:
                     gt_bbox.append([gt['bbox'][0], gt['bbox'][1], gt['bbox'][0] + gt['bbox'][2], gt['bbox'][1] + gt['bbox'][3]])
         # randomly sample 99 negative samples to test, remember to save all of them
-        random.seed(seed)
-        all_neg_idx = random.sample(all_neg_idx, num_neg)
+        # random.seed(seed)
+        # all_neg_idx = random.sample(all_neg_idx, num_neg)
         # assert len(all_neg_idx) == (len(self.ids) - 1) # assure that positive sample is removed
         # then get all img from CocoDetection
         negative_dataset = [] # list of all images in shape [3, 800, 800]
@@ -423,11 +425,13 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         ## firstly, remove positive sample with given id
         assert id in self.map_class_id[label]
         all_neg_idx = []
+        unique_filename = [self.map_id_filename[id]]
         for idx in range(len(self.ids)):
             temp_img_id = self.ids[idx]
             if temp_img_id != id:
-                if (self.map_id_filename[temp_img_id] != self.map_id_filename[id]) and (temp_img_id in self.map_class_id[label]):
+                if (self.map_id_filename[temp_img_id] not in unique_filename) and (temp_img_id in self.map_class_id[label]):
                     all_neg_idx.append(idx)
+                    unique_filename.append(self.map_id_filename[temp_img_id])
             else: 
                 pos_query = self.__getitem__(idx)[1]
                 # get the groundtruth

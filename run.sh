@@ -2,5 +2,9 @@
 # --resume ./attribution_train/checkpoint.pth # test with filename and lafi
 CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attribution_img/test_negative -c config/coco_img.py --eval --eval_mode hard_negatives --datasets config/coco_img.json --resume ./attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
 CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attribution_img/test_negative -c config/coco_img.py --eval --datasets config/coco_img.json --resume ./attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attribution_random -c config/coco_random.py --eval --eval_mode hard_negatives --datasets config/coco_random.json --resume ./attribution_random/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attribution_random -c config/coco_random.py --eval --datasets config/coco_random.json --resume ./attribution_random/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
 # CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attribution_img -c config/coco_img.py --datasets config/coco_img.json --pretrain_model_path checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
 # CUDA_VISIBLE_DEVICES=1 python -u main.py --save_results --output_dir ./attribution_img_and_class -c config/coco_img_and_class.py --datasets config/coco_img_and_class.json --pretrain_model_path checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
