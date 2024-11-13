@@ -1,3 +1,3 @@
 # CUDA_VISIBLE_DEVICES=1 python -u main.py --save_results --output_dir ./attribution_val -c config/cfg_fsc147_val.py --eval --datasets config/datasets_od_example.json --pretrain_model_path checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
 # --resume ./attribution_train/checkpoint.pth
-CUDA_VISIBLE_DEVICES=1 python -u main.py --save_results --output_dir ./attribution_eval -c config/cfg_fsc147_val.py --eval --datasets config/datasets_coco_example.json --resume ./attribution_train/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attribution_eval -c config/coco_random.py --eval --datasets config/coco_random.json --resume ./attribution_random/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased

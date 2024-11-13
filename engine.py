@@ -172,7 +172,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
 
         bs = samples.tensors.shape[0]
-        # input_captions = [caption] * bs
+        # input_captions = [caption] * bs ### this caption help to increase the AP and AR
         input_captions = [cat_list[target['labels'][0]] + " ." for target in targets]
         print("input_captions: " + str(input_captions))
         
@@ -197,10 +197,10 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
         # import pdb; pdb.set_trace()
         ## test res
-        # for indx, key_id in enumerate(res.keys()):
-        #     # res[key_id]['labels'][0] = targets[indx]['labels'][0].item()
-        #     for lb_id in range(len(res[key_id]['labels'])):
-        #         res[key_id]['labels'][lb_id] = targets[indx]['labels'][0].item()
+        for indx, key_id in enumerate(res.keys()):
+            # res[key_id]['labels'][0] = targets[indx]['labels'][0].item()
+            for lb_id in range(len(res[key_id]['labels'])):
+                res[key_id]['labels'][lb_id] = targets[indx]['labels'][0].item()
         ## continue
         if coco_evaluator is not None:
             coco_evaluator.update(res)

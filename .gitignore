@@ -19,6 +19,9 @@ checkpoints/*
 attribution_val/*
 attribution_train/*
 attribution_eval/*
+attribution_class/*
+attribution_img/*
+attribution_random/*
 
 # Distribution / packaging
 .Python
