@@ -23,6 +23,7 @@ attribution_class/*
 attribution_img/*
 attribution_random/*
 attribution_img_and_class/*
+attribution_finetune/*
 
 # Distribution / packaging
 .Python

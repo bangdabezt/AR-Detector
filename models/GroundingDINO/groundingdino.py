@@ -49,6 +49,7 @@ from .transformer import build_transformer
 from .utils import MLP, ContrastiveEmbed, sigmoid_focal_loss
 
 from .matcher import build_matcher
+from .adapter import build_adapter
 
 
 
@@ -60,6 +61,7 @@ class GroundingDINO(nn.Module):
         self,
         backbone,
         transformer,
+        adapters,
         num_queries,
         aux_loss=False,
         iter_update=False,
@@ -96,6 +98,10 @@ class GroundingDINO(nn.Module):
         self.nheads = nheads
         self.max_text_len = 256
         self.sub_sentence_present = sub_sentence_present
+
+        #### set adapters ---------------------------------------------------------
+        self.target_adapter, self.query_adapter = adapters
+        #### ---------------------------------------------------------
 
         # setting query dim
         self.query_dim = query_dim
@@ -429,7 +435,7 @@ class GroundingDINO(nn.Module):
 
         outputs_class = torch.stack(
             [
-                layer_cls_embed(layer_hs, text_dict)
+                layer_cls_embed(layer_hs, text_dict, self.target_adapter, self.query_adapter)
                 for layer_cls_embed, layer_hs in zip(self.class_embed, hs)
             ]
         )
@@ -518,6 +524,68 @@ class SetCriterion(nn.Module):
         self.focal_alpha = focal_alpha
         self.focal_gamma= focal_gamma
 
+    def const_loss(self, outputs):
+        """
+        Custom loss function to maximize the distance between the maximum logits
+        of the first sample and the other samples in the batch.
+        
+        Args:
+        - output (torch.Tensor): Model output with shape [batch_size, num_queries, logits].
+        
+        Returns:
+        - loss (torch.Tensor): Scalar tensor representing the loss.
+        """
+        # Ensure batch size is at least 2 for meaningful comparisons
+        output = outputs['pred_logits']
+        assert output.size(0) > 1, "Batch size should be greater than 1."
+
+        # Get the maximum logit for each sample in the batch
+        max_logits = output.max(dim=2).values  # Shape: [batch_size, num_queries]
+        
+        # Calculate the maximum logit of each sample (max over num_queries dimension)
+        max_logits_per_sample = max_logits.max(dim=1).values  # Shape: [batch_size]
+
+        # Get the max logit of the first sample in the batch
+        first_sample_max_logit = max_logits_per_sample[0]  # Scalar
+
+        # Calculate the distance between the max logit of the first sample
+        # and the max logits of the other samples in the batch
+        distances = -torch.log(10e-6 + torch.sigmoid(first_sample_max_logit - max_logits_per_sample[1:]))
+        # distances = torch.abs(first_sample_max_logit - max_logits_per_sample[1:])
+        
+        # Define the loss as the mean (or sum) of these distances
+        const_loss = distances.mean()
+        
+        return const_loss
+
+    def reg_loss(self, model, p_norm=2):
+        # Get the weights (W and W~) of the two layers
+        W = model.target_adapter.mapper.weight
+        W_tilde = model.query_adapter.mapper.weight
+
+        # Compute W^T * W - I and W~^T * W~ - I
+        I_W = torch.eye(W.size(1), device=W.device)  # Identity matrix of size equal to W^T * W
+        I_W_tilde = torch.eye(W_tilde.size(1), device=W_tilde.device)  # Identity matrix of size equal to W~^T * W~
+
+        term1 = W.T @ W - I_W
+        term2 = W_tilde.T @ W_tilde - I_W_tilde
+
+        # Compute the Frobenius norm of each term and combine them
+        frobenius_norm1 = torch.norm(term1, p=p_norm)
+        frobenius_norm2 = torch.norm(term2, p=p_norm)
+
+        # Final regularization loss
+        reg_loss = 0.5 * (frobenius_norm1 + frobenius_norm2)
+        return reg_loss
+    
+    def finetune_loss(self, model, outputs, p_norm=2):
+        const_loss = self.const_loss(outputs)
+        reg_loss = self.reg_loss(model, p_norm)
+        return {
+            'const': const_loss,
+            'reg': reg_loss
+        }
+    
     @torch.no_grad()
     def loss_cardinality(self, outputs, targets, indices, num_boxes):
         """ Compute the cardinality error, ie the absolute error in the number of predicted non-empty boxes
@@ -566,7 +634,7 @@ class SetCriterion(nn.Module):
         pred_logits=outputs['pred_logits']
         new_targets=outputs['one_hot'].to(pred_logits.device)
         text_mask=outputs['text_mask']
-
+        
         assert (new_targets.dim() == 3)
         assert (pred_logits.dim() == 3)  # batch x from x to
         
@@ -790,7 +858,7 @@ class PostProcess(nn.Module):
 
         assert len(out_logits) == len(target_sizes)
         assert target_sizes.shape[1] == 2
-
+        # import pdb; pdb.set_trace()
         prob = prob_to_label
         topk_values, topk_indexes = torch.topk(prob.view(prob.shape[0], -1), num_select, dim=1)
         scores = topk_values
@@ -826,6 +894,7 @@ def build_groundingdino(args):
     device = torch.device(args.device)
     backbone = build_backbone(args)
     transformer = build_transformer(args)
+    adapters = build_adapter(args)
 
     dn_labelbook_size = args.dn_labelbook_size
     dec_pred_bbox_embed_share = args.dec_pred_bbox_embed_share
@@ -834,6 +903,7 @@ def build_groundingdino(args):
     model = GroundingDINO(
         backbone,
         transformer,
+        adapters,
         num_queries=args.num_queries,
         aux_loss=args.aux_loss,
         iter_update=True,

@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune -c config/coco_random.py --datasets config/coco_random.json --pretrain_model_path attribution_random/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased

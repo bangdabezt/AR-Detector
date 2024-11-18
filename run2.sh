@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attribution_random -c config/coco_random.py --eval --eval_mode hard_negatives --datasets config/coco_random.json --resume ./attribution_random/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased

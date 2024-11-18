@@ -19,6 +19,124 @@ from datasets.panoptic_eval import PanopticEvaluator
 import json
 import util.customize_metric as cmetric
 
+def negative_train(model: torch.nn.Module, criterion: torch.nn.Module, dataset, target, args=None):
+    device = torch.device(args.device)
+    new_batch_size = 4
+    # image id of positive sample
+    img_id = target['image_id'].item()
+    label = target['labels'].item()
+    # get negative sample from dataset
+    if args.eval_mode == 'all_negatives':
+        neg_images, pos_target, pos_query = dataset.get_all_negatives(img_id, args.seed, new_batch_size-1)
+    elif args.eval_mode == 'hard_negatives':
+        neg_images, pos_target, pos_query = dataset.get_hard_negatives(img_id, target['cap_list'][label], args.seed, new_batch_size-1)
+    else:
+        raise ValueError("'eval_mode' hasn't supported value {}".format(args.eval_mode))
+    assert len(neg_images) < new_batch_size
+    # combine negative and positive samples to create a batch
+    samples = [pos_target] + neg_images
+    ng_bs = len(samples)
+    queries = [pos_query for _ in range(ng_bs)]
+    exemplars = [target["exemplars"].to(device) for _ in range(ng_bs)]
+    labels_uncropped = [target["labels_uncropped"].to(device) for _ in range(ng_bs)]
+    captions = [target["caption"] for _ in range(ng_bs)]
+    # NestedTensor
+    samples = utils.nested_tensor_from_tensor_list(samples).to(device)
+    queries = utils.nested_tensor_from_tensor_list(queries).to(device)
+    # train model with new batch
+    with torch.cuda.amp.autocast(enabled=args.amp):
+        outputs = model(samples, queries, exemplars, labels_uncropped, captions=captions)
+    
+    return criterion.finetune_loss(model, outputs)
+
+def finetune_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+                    data_loader: Iterable, optimizer: torch.optim.Optimizer,
+                    device: torch.device, epoch: int, max_norm: float = 0, 
+                    wo_class_error=False, lr_scheduler=None, args=None, logger=None):
+    scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
+    model.train()
+    criterion.train()
+    metric_logger = utils.MetricLogger(delimiter="  ")
+    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    if not wo_class_error:
+        metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
+    header = 'Epoch: [{}]'.format(epoch)
+    print_freq = 10
+
+    _cnt = 0
+    weight_dict = {
+        'const': 1.0,
+        'reg': 0.05
+    }
+    for samples, queries, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
+        # import pdb; pdb.set_trace()
+        assert len(targets) == 1 # currently only learning with 1 positive sample
+        # negative_train here
+        loss_dict = negative_train(model, criterion, data_loader.dataset, targets[0], args)
+        ## loss for backward
+        losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+
+        # reduce losses over all GPUs for logging purposes
+        loss_dict_reduced = utils.reduce_dict(loss_dict)
+        loss_dict_reduced_unscaled = {f'{k}_unscaled': v
+                                      for k, v in loss_dict_reduced.items()}
+        loss_dict_reduced_scaled = {k: v * weight_dict[k]
+                                    for k, v in loss_dict_reduced.items() if k in weight_dict}
+        losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
+
+        loss_value = losses_reduced_scaled.item()
+
+        if not math.isfinite(loss_value):
+            print("Loss is {}, stopping training".format(loss_value))
+            print(loss_dict_reduced)
+            sys.exit(1)
+
+        # amp backward function
+        if args.amp:
+            optimizer.zero_grad()
+            scaler.scale(losses).backward()
+            if max_norm > 0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            # original backward function
+            optimizer.zero_grad()
+            losses.backward()
+            if max_norm > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+            optimizer.step()
+
+        if args.onecyclelr:
+            lr_scheduler.step()
+
+
+        metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
+        if 'class_error' in loss_dict_reduced:
+            metric_logger.update(class_error=loss_dict_reduced['class_error'])
+        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+
+        _cnt += 1
+        if args.debug:
+            if _cnt % 15 == 0:
+                print("BREAK!"*5)
+                break
+
+    if getattr(criterion, 'loss_weight_decay', False):
+        criterion.loss_weight_decay(epoch=epoch)
+    if getattr(criterion, 'tuning_matching', False):
+        criterion.tuning_matching(epoch)
+
+
+    # gather the stats from all processes
+    metric_logger.synchronize_between_processes()
+    print("Averaged stats:", metric_logger)
+    resstat = {k: meter.global_avg for k, meter in metric_logger.meters.items() if meter.count > 0}
+    # if getattr(criterion, 'loss_weight_decay', False):
+    #     resstat.update({f'weight_{k}': v for k,v in criterion.weight_dict.items()})
+    return resstat
+
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, max_norm: float = 0, 
@@ -241,7 +359,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
 
         results = postprocessors['bbox'](outputs, orig_target_sizes)
         #### Process for negative samples -----------------------------------------------------------------------------------------------------------
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         all_results, all_gt_boxes = test_negatives(model, postprocessors, data_loader.dataset, results, 
                                                     targets, exemplars, input_captions, args)
         for sid in range(bs):
@@ -253,6 +371,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
                 f.write(json.dumps(save_res) + "\n")
         # customized_results.extend(all_results)
         # all_gt_bboxes.extend(all_gt_boxes)
+        ## ----------------------------------------------------------------------------------------------------------------------------------------
         # [scores: [100], labels: [100], boxes: [100, 4]] x B
         if 'segm' in postprocessors.keys():
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)

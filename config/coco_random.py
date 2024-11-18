@@ -3,7 +3,7 @@ data_aug_max_size = 1333
 data_aug_scales2_resize = [400, 500, 600]
 data_aug_scales2_crop = [384, 600]
 data_aug_scale_overlap = None
-batch_size = 2
+batch_size = 1
 modelname = 'groundingdino'
 backbone = "swin_B_384_22k"
 position_embedding = 'sine'
@@ -110,6 +110,7 @@ dec_pred_class_embed_share = True
 match_unstable_error = True
 use_detached_boxes_dec_out = False
 dn_scalar = 100
+adapter_type = 'LinearProbe'
 
 box_threshold = 0.23
 text_threshold = 0

@@ -372,7 +372,7 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         return Image.open(abs_path).convert("RGB")
 
     def get_all_negatives(self, id: int, seed: int, num_neg=99):
-        ## firstly, remove positive sample with given id
+        ## firstly, remove positive sample with given id ----
         all_neg_idx = []
         unique_filename = [self.map_id_filename[id]]
         for idx in range(len(self.ids)):

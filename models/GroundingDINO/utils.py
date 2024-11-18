@@ -239,7 +239,7 @@ class ContrastiveEmbed(nn.Module):
         super().__init__()
         self.max_text_len = max_text_len
 
-    def forward(self, x, text_dict):
+    def forward(self, x, text_dict, target_adapter=None, query_adapter=None):
         """_summary_
 
         Args:
@@ -260,7 +260,10 @@ class ContrastiveEmbed(nn.Module):
         # import pdb;pdb.set_trace()
         y = text_dict["encoded_text"]  #torch.Size([2, 195, 256])
         text_token_mask = text_dict["text_token_mask"]
-
+        ### Adapter here
+        if (target_adapter != None) and (query_adapter != None):
+            x = target_adapter(x)
+            y = query_adapter(y)
         res = x @ y.transpose(-1, -2)
         res.masked_fill_(~text_token_mask[:, None, :], float("-inf"))
         # 接着，对res进行掩码操作，将未使用的文本token（即padding的token）对应的得分置为负无穷float("-inf")。这是为了在计算相似度时，排除padding部分的影响。

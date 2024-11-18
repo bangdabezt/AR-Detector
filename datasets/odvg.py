@@ -53,6 +53,26 @@ class ODVGDataset(VisionDataset):
         # else: 
         #     self.coco = None
         #     self.valid_flag = False
+        self.map_imgid_index = self.build_map_imgid_index()
+        self.map_class_imgid = self.build_map_class_imgid()
+
+    def build_map_imgid_index(self):
+        mapper = {}
+        for idx, meta in enumerate(self.metas):
+            img_id = meta['query_file']['image_id']
+            mapper[img_id] = idx
+        return mapper
+
+    def build_map_class_imgid(self):
+        mapper = {}
+        for meta in self.metas:
+            img_id = meta['query_file']['image_id']
+            category = meta['query_file']['category']
+            if category in mapper:
+                mapper[category].append(img_id)
+            else:
+                mapper[category] = []
+        return mapper
 
     def load_coco_gt(self, anno):
         # self.cap_dict = {}
@@ -146,6 +166,66 @@ class ODVGDataset(VisionDataset):
         if self.dataset_mode == "OD":
             print(f"  == total labels: {len(self.label_map)}")
 
+    def get_all_negatives(self, img_id: int, seed: int, num_neg=3):
+        ## first get all indexes of negatives
+        all_neg_idx = []
+        pos_index = self.map_imgid_index[img_id]
+        unique_filename = [self.metas[pos_index]['filename']]
+        for idx in range(len(self.metas)):
+            temp_meta = self.metas[idx]
+            if idx != pos_index:
+                if temp_meta['filename'] not in unique_filename:
+                    all_neg_idx.append(idx)
+                    unique_filename.append(temp_meta['filename'])
+            else:
+                pos_target, pos_query, _ = self.__getitem__(idx)
+        # randomly choose num_neg negative targets for finetuning
+        random.seed(seed)
+        all_neg_idx = random.sample(all_neg_idx, num_neg)
+        negative_dataset = []
+        for idx in all_neg_idx:
+            meta = self.metas[idx]
+            abs_path = os.path.join(self.root, meta["filename"])
+            if not os.path.exists(abs_path):
+                raise FileNotFoundError(f"{abs_path} not found.")
+            image = Image.open(abs_path).convert('RGB')
+            if self.transforms is not None:
+                image, _ = self.transforms(image, {})
+            ## add this img to negative_dataset
+            negative_dataset.append(image)
+        return negative_dataset, pos_target, pos_query
+
+
+    def get_hard_negatives(self, img_id: int, category: str, seed: int, num_neg=3):
+        assert img_id in self.map_class_imgid[category]
+        ## first get all indexes of negatives
+        all_neg_idx = []
+        pos_index = self.map_imgid_index[img_id]
+        unique_filename = [self.metas[pos_index]['filename']]
+        for idx in range(len(self.metas)):
+            temp_meta = self.metas[idx]
+            if idx != pos_index:
+                if (temp_meta['filename'] not in unique_filename) and (temp_meta['query_file']['image_id'] in self.map_class_imgid[category]):
+                    all_neg_idx.append(idx)
+                    unique_filename.append(temp_meta['filename'])
+            else:
+                pos_target, pos_query, _ = self.__getitem__(idx)
+        # randomly choose num_neg negative targets for finetuning
+        random.seed(seed)
+        all_neg_idx = random.sample(all_neg_idx, num_neg)
+        negative_dataset = []
+        for idx in all_neg_idx:
+            meta = self.metas[idx]
+            abs_path = os.path.join(self.root, meta["filename"])
+            if not os.path.exists(abs_path):
+                raise FileNotFoundError(f"{abs_path} not found.")
+            image = Image.open(abs_path).convert('RGB')
+            if self.transforms is not None:
+                image, _ = self.transforms(image, {})
+            ## add this img to negative_dataset
+            negative_dataset.append(image)
+        return negative_dataset, pos_target, pos_query
+    
     def __getitem__(self, index: int):
         meta = self.metas[index]
         # get target image
