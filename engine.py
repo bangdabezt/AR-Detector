@@ -24,7 +24,7 @@ def negative_train(model: torch.nn.Module, criterion: torch.nn.Module, dataset, 
     new_batch_size = 4
     # image id of positive sample
     img_id = target['image_id'].item()
-    label = target['labels'].item()
+    label = target['labels_uncropped'].item()
     # get negative sample from dataset
     if args.eval_mode == 'all_negatives':
         neg_images, pos_target, pos_query = dataset.get_all_negatives(img_id, args.seed, new_batch_size-1)
@@ -40,6 +40,8 @@ def negative_train(model: torch.nn.Module, criterion: torch.nn.Module, dataset, 
     exemplars = [target["exemplars"].to(device) for _ in range(ng_bs)]
     labels_uncropped = [target["labels_uncropped"].to(device) for _ in range(ng_bs)]
     captions = [target["caption"] for _ in range(ng_bs)]
+    cap_list = [target["cap_list"] for _ in range(ng_bs)]
+    targets = [{k: v.to(device) for k, v in target.items() if torch.is_tensor(v)} for _ in range(ng_bs)]
     # NestedTensor
     samples = utils.nested_tensor_from_tensor_list(samples).to(device)
     queries = utils.nested_tensor_from_tensor_list(queries).to(device)
@@ -47,7 +49,7 @@ def negative_train(model: torch.nn.Module, criterion: torch.nn.Module, dataset, 
     with torch.cuda.amp.autocast(enabled=args.amp):
         outputs = model(samples, queries, exemplars, labels_uncropped, captions=captions)
     
-    return criterion.finetune_loss(model, outputs)
+    return criterion.finetune_loss(model, outputs, targets, cap_list, captions) # criterion(outputs, targets, cap_list, captions)
 
 def finetune_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -64,10 +66,13 @@ def finetune_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     print_freq = 10
 
     _cnt = 0
+    # set weight dict
     weight_dict = {
         'const': 1.0,
-        'reg': 0.05
+        # 'reg': 0.05
     }
+    if args.use_reg_loss: weight_dict['reg'] = 0.05
+
     for samples, queries, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
         # import pdb; pdb.set_trace()
         assert len(targets) == 1 # currently only learning with 1 positive sample
@@ -237,8 +242,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 def test_negatives(model, postprocessors, dataset, pos_results, targets, exemplars, captions, args=None):
     model.eval()
     device = torch.device(args.device)
-    neg_bs = 4
-    def postprocess_res(result, limit_num_pred = 1):
+    neg_bs = 1
+    def postprocess_res(result, limit_num_pred = 100):
         """
         Input:
             - result: dict of torch.tensor {'scores', 'labels', 'boxes'}
@@ -360,15 +365,16 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         results = postprocessors['bbox'](outputs, orig_target_sizes)
         #### Process for negative samples -----------------------------------------------------------------------------------------------------------
         # import pdb; pdb.set_trace()
-        all_results, all_gt_boxes = test_negatives(model, postprocessors, data_loader.dataset, results, 
-                                                    targets, exemplars, input_captions, args)
-        for sid in range(bs):
-            save_res = {
-                "results": all_results[sid],
-                "gt_box": all_gt_boxes[sid]
-            }
-            with open(os.path.join(output_dir, "res_{}.txt".format(args.eval_mode)), "a") as f:  # Use open() directly
-                f.write(json.dumps(save_res) + "\n")
+        if args.eval:
+            all_results, all_gt_boxes = test_negatives(model, postprocessors, data_loader.dataset, results, 
+                                                        targets, exemplars, input_captions, args)
+            for sid in range(bs):
+                save_res = {
+                    "results": all_results[sid],
+                    "gt_box": all_gt_boxes[sid]
+                }
+                with open(os.path.join(output_dir, "res_{}.txt".format(args.eval_mode)), "a") as f:  # Use open() directly
+                    f.write(json.dumps(save_res) + "\n")
         # customized_results.extend(all_results)
         # all_gt_bboxes.extend(all_gt_boxes)
         ## ----------------------------------------------------------------------------------------------------------------------------------------

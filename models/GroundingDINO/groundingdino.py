@@ -538,7 +538,7 @@ class SetCriterion(nn.Module):
         # Ensure batch size is at least 2 for meaningful comparisons
         output = outputs['pred_logits']
         assert output.size(0) > 1, "Batch size should be greater than 1."
-
+        import pdb; pdb.set_trace()
         # Get the maximum logit for each sample in the batch
         max_logits = output.max(dim=2).values  # Shape: [batch_size, num_queries]
         
@@ -578,8 +578,59 @@ class SetCriterion(nn.Module):
         reg_loss = 0.5 * (frobenius_norm1 + frobenius_norm2)
         return reg_loss
     
-    def finetune_loss(self, model, outputs, p_norm=2):
-        const_loss = self.const_loss(outputs)
+    def finetune_loss(self, model, outputs, targets, cat_list, caption, return_indices=False, p_norm=2):
+        device=next(iter(outputs.values())).device
+        one_hot = torch.zeros(outputs['pred_logits'].size(),dtype=torch.int64) # torch.Size([bs, 900, 256])
+        token = outputs['token'] 
+        
+        label_map_list = []
+        indices = []
+        for j in range(len(cat_list)): # bs
+            label_map=[]
+            for i in range(len(cat_list[j])):
+                label_id=torch.tensor([i])
+                per_label=create_positive_map(token[j], label_id, cat_list[j], caption[j])
+                label_map.append(per_label)
+            label_map=torch.stack(label_map,dim=0).squeeze(1)
+            label_map_list.append(label_map)
+        for j in range(len(cat_list)): # bs
+            for_match = {
+                "pred_logits" : outputs['pred_logits'][j].unsqueeze(0),
+                "pred_boxes" : outputs['pred_boxes'][j].unsqueeze(0)
+            }
+            inds = self.matcher(for_match, [targets[j]], label_map_list[j])
+            indices.extend(inds)
+        # indices : A list of size batch_size, containing tuples of (index_i, index_j) where:
+        # - index_i is the indices of the selected predictions (in order)
+        # - index_j is the indices of the corresponding selected targets (in order)
+
+        # import pdb; pdb.set_trace()
+        tgt_ids = [v["labels"].cpu() for v in targets]
+        # len(tgt_ids) == bs
+        for i in range(len(indices)):
+            tgt_ids[i]=tgt_ids[i][indices[i][1]]
+            one_hot[i,indices[i][0]] = label_map_list[i][tgt_ids[i]].to(torch.long)
+        # logit of negatives should be zero-value
+        one_hot[1:] = 0.0
+        outputs['one_hot'] = one_hot
+        # if return_indices:
+        #     indices0_copy = indices
+        #     indices_list = []
+
+        # # Compute the average number of target boxes accross all nodes, for normalization purposes
+        # num_boxes_list = [len(t["labels"]) for t in targets]
+        # num_boxes = sum(num_boxes_list)
+        # num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=device)
+        # if is_dist_avail_and_initialized():
+        #     torch.distributed.all_reduce(num_boxes)
+        # num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()
+
+        # Compute all the requested losses
+        # losses = {}
+        # for loss in self.losses:
+        #     losses.update(self.get_loss(loss, outputs, targets, indices, num_boxes))
+        ## new loss
+        const_loss = self.token_sigmoid_binary_focal_loss(outputs, None, indices, None)['loss_ce']#self.const_loss(outputs)
         reg_loss = self.reg_loss(model, p_norm)
         return {
             'const': const_loss,

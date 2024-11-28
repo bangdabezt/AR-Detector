@@ -37,6 +37,7 @@ def get_args_parser():
     parser.add_argument("--datasets", type=str, required=True, help='path to datasets json')
     parser.add_argument('--remove_difficult', action='store_true')
     parser.add_argument('--fix_size', action='store_true')
+    parser.add_argument('--use_reg_loss', action='store_true')
 
     # training parameters
     parser.add_argument('--output_dir', default='',
@@ -208,7 +209,7 @@ def main(args):
         data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                     collate_fn=utils.collate_fn, num_workers=args.num_workers)
 
-    data_loader_val = DataLoader(dataset_val, 4, sampler=sampler_val,
+    data_loader_val = DataLoader(dataset_val, 2, sampler=sampler_val,
                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
     # for img, qry, targ in data_loader_val:
     # import pdb; pdb.set_trace()
