@@ -6,7 +6,7 @@ Official PyTorch implementation for Attribution Region Detector (ARD). Details c
 
 If you find this repository useful, please give it a star ⭐.
 
-## ARD Architecture
+## AR-Detector Architecture
 
 <img src=repo_img/architecture.png width="100%"/>
 
