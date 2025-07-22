@@ -32,6 +32,7 @@ cd AR-Detector/
 
 ```bash
 conda env create -f environment.yml
+conda activate AR_Detector
 ```
 
 ## Citation
