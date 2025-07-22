@@ -17,6 +17,23 @@ If you find this repository useful, please give it a star ⭐.
 
 ## Preparation
 
+### Setup
+
+We conduct our model running with the following settings: Python 3.9.19, and CUDA 12.1. It is possible that other versions are also available.
+
+1. Clone this repository.
+
+```bash
+git clone https://github.com/bangdabezt/AR-Detector.git 
+cd AR-Detector/
+```
+
+2. Install the required dependencies.
+
+```bash
+conda env create -f environment.yml
+```
+
 ## Citation
 
 ### Acknowledgements
