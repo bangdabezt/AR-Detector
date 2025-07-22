@@ -1,0 +1,8 @@
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attr_lvis_img -c config/lvis_cf/lvis_img.py --datasets config/lvis_cf/lvis_img.json --pretrain_model_path checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attr_lvis_img -c config/coco_img.py --datasets config/coco_img.json --pretrain_model_path checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=1 python -u main.py --save_results --output_dir ./attr_lvis_img/config1 -c config/lvis_cf/lvis_img_cf1.py --datasets config/lvis_cf/lvis_img.json --pretrain_model_path checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+## test # AttributionGD/data/break-a-scene/coco2017/official_data
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attr_lvis_img/test_res/original/best_test -c config/lvis_cf/lvis_img.py --eval --datasets config/lvis_cf/lvis_img.json --resume attr_lvis_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attr_lvis_img/test_res/config1/best_test -c config/lvis_cf/lvis_img_cf1.py --eval --datasets config/lvis_cf/lvis_img.json --resume attr_lvis_img/config1/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased

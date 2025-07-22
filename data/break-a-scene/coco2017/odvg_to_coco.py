@@ -16,7 +16,8 @@ def convert_odvg(input_file, output_file):
     category_mapping = {}
     # all_cats = ['bear', 'cat', 'horse', 'bird', 'dog', 'cow', 'teddy bear', 'zebra', 'sheep', 'elephant']
     # all_cats = ["horse", "bird", "dog", "cat", "cow", "elephant", "bear", "zebra", "teddy bear", "sheep"]
-    all_cats = ['dog']
+    all_cats = ['cow']
+    # all_cats = ["teddy bear", "zebra", "horse", "cow", "elephant", "dog", "sheep", "cat", "bear", "bird"]
     # annotation_id = 0  # Unique ID for each annotation
 
     # Read the JSONL file and process each line
@@ -87,4 +88,4 @@ def convert_odvg(input_file, output_file):
     print(f"COCO annotations saved to {output_file}")
 
 ## AttributionGD/data/break-a-scene/coco2017/official_data
-convert_odvg('./official_data/val_label.jsonl', './official_data/anno_label.json')
+convert_odvg('./official_data/test_cow.jsonl', './official_data/anno_cow.json')

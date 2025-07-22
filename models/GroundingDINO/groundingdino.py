@@ -109,7 +109,7 @@ class GroundingDINO(nn.Module):
 
         # visual exemplar cropping
         self.feature_map_proj = nn.Conv2d(
-            (256 + 512 + 1024), hidden_dim, kernel_size=1
+            (256 + 512 + 1024), hidden_dim, kernel_size=1 # (256 + 512 + 1024) # 1344
         )
         # self.feature_map_encoder = TransformerEncoder(
         #     3, hidden_dim, 8, 0.1, 1e-5,
@@ -244,6 +244,7 @@ class GroundingDINO(nn.Module):
         
         
         for sample_ind in range(len(labels)):
+            # ind_to_insert_exemplar = None
             label = labels[sample_ind][0]
             exemplars = exemplar_tokens[sample_ind]
             label_count = -1
@@ -258,7 +259,8 @@ class GroundingDINO(nn.Module):
                     while input_ids[sample_ind][ind_to_insert_exemplar] not in self.specical_tokens:
                         ind_to_insert_exemplar += 1
                     break
-            
+            # if ind_to_insert_exemplar == None:
+            #     import pdb; pdb.set_trace()
             # * token indicates exemplar.
             new_input_ids.append(torch.cat([input_ids[sample_ind][:ind_to_insert_exemplar], torch.tensor([1008] * exemplars.shape[0]).to(device), input_ids[sample_ind][ind_to_insert_exemplar:]]))
             new_encoded_text.append(torch.cat([encoded_text[sample_ind][:ind_to_insert_exemplar, :], exemplars, encoded_text[sample_ind][ind_to_insert_exemplar:, :]]))
@@ -267,7 +269,6 @@ class GroundingDINO(nn.Module):
         tokenized['input_ids'] = torch.stack(new_input_ids)
         
         text_self_attention_masks, position_ids, _ = generate_masks_with_special_tokens_and_transfer_map(tokenized, self.specical_tokens, None)
-
 
         return {"encoded_text": torch.stack(new_encoded_text), 
                 "text_token_mask": torch.stack(new_text_token_mask), 
@@ -282,7 +283,7 @@ class GroundingDINO(nn.Module):
             F.interpolate(feat.decompose()[0], size=(h, w), mode='bilinear', align_corners=True)
             for feat in features
         ], dim=1)
-        
+        # import pdb; pdb.set_trace()
         x = self.feature_map_proj(x)
         
         #pos_emb = self.feature_map_pos_embed(bs, h, w, x.device)
@@ -318,7 +319,6 @@ class GroundingDINO(nn.Module):
             captions = [t["caption"] for t in targets]
         
         # encoder texts
-
         tokenized = self.tokenizer(captions, padding="longest", return_tensors="pt").to(
             samples.device
         )
@@ -332,7 +332,7 @@ class GroundingDINO(nn.Module):
         ) = generate_masks_with_special_tokens_and_transfer_map(
             tokenized, self.specical_tokens, self.tokenizer
         )
-
+        
         if text_self_attention_masks.shape[1] > self.max_text_len:
             text_self_attention_masks = text_self_attention_masks[
                 :, : self.max_text_len, : self.max_text_len
@@ -341,6 +341,14 @@ class GroundingDINO(nn.Module):
             tokenized["input_ids"] = tokenized["input_ids"][:, : self.max_text_len]
             tokenized["attention_mask"] = tokenized["attention_mask"][:, : self.max_text_len]
             tokenized["token_type_ids"] = tokenized["token_type_ids"][:, : self.max_text_len]
+        # if text_self_attention_masks.shape[1] >= self.max_text_len:
+        #     text_self_attention_masks = text_self_attention_masks[
+        #         :, : self.max_text_len-1, : self.max_text_len-1
+        #     ]
+        #     position_ids = position_ids[:, : self.max_text_len-1]
+        #     tokenized["input_ids"] = tokenized["input_ids"][:, : self.max_text_len-1]
+        #     tokenized["attention_mask"] = tokenized["attention_mask"][:, : self.max_text_len-1]
+        #     tokenized["token_type_ids"] = tokenized["token_type_ids"][:, : self.max_text_len-1]
 
         # extract text embeddings
         if self.sub_sentence_present:
@@ -356,7 +364,8 @@ class GroundingDINO(nn.Module):
         text_token_mask = tokenized.attention_mask.bool()  # bs, 195
         # text_token_mask: True for nomask, False for mask
         # text_self_attention_masks: True for nomask, False for mask
-
+        # encoded_text and text_self_attention_masks: 2,256,256
+        # text_token_mask and position_ids: 2, 256
         if encoded_text.shape[1] > self.max_text_len:
             encoded_text = encoded_text[:, : self.max_text_len, :]
             text_token_mask = text_token_mask[:, : self.max_text_len]
@@ -364,10 +373,17 @@ class GroundingDINO(nn.Module):
             text_self_attention_masks = text_self_attention_masks[
                 :, : self.max_text_len, : self.max_text_len
             ]
-        
+        # if encoded_text.shape[1] >= self.max_text_len:
+        #     encoded_text = encoded_text[:, : self.max_text_len-1, :]
+        #     text_token_mask = text_token_mask[:, : self.max_text_len-1]
+        #     position_ids = position_ids[:, : self.max_text_len-1]
+        #     text_self_attention_masks = text_self_attention_masks[
+        #         :, : self.max_text_len-1, : self.max_text_len-1
+        #     ]
+        # coco: encoded_text: 2, 23, 256
 
         text_dict = {
-            "encoded_text": encoded_text,  # bs, 195, d_model
+            "encoded_text": encoded_text,  # bs, 195, d_model # 2, 256, 256
             "text_token_mask": text_token_mask,  # bs, 195
             "position_ids": position_ids,  # bs, 195
             "text_self_attention_masks": text_self_attention_masks,  # bs, 195,195
@@ -382,7 +398,6 @@ class GroundingDINO(nn.Module):
         ## ------------------------ get features of queries ----------------------------------------------------
         queries_fts, queries_poss = self.backbone(queries)
         queries_combined_fts = self.combine_features(queries_fts)
-        # import pdb; pdb.set_trace()
         # Get visual exemplar tokens.
         bs = len(exemplars)
         num_exemplars = exemplars[0].shape[0]
@@ -393,6 +408,8 @@ class GroundingDINO(nn.Module):
 
         if exemplar_tokens is not None:
             text_dict = self.add_exemplar_tokens(tokenized, text_dict, exemplar_tokens, labels)
+            # encoded_text : 2,257,256 and text_self_attention_masks: 2,257,257
+            # text_token_mask and position_ids: 2, 257
         
         srcs = []
         masks = []
@@ -439,7 +456,7 @@ class GroundingDINO(nn.Module):
                 for layer_cls_embed, layer_hs in zip(self.class_embed, hs)
             ]
         )
-
+        
         out = {"pred_logits": outputs_class[-1], "pred_boxes": outputs_coord_list[-1]}
 
         # Used to calculate losses
@@ -507,7 +524,7 @@ class GroundingDINO(nn.Module):
 
 
 
-
+import math
 class SetCriterion(nn.Module):
     def __init__(self, matcher, weight_dict, focal_alpha,focal_gamma, losses):
         """ Create the criterion.
@@ -523,6 +540,12 @@ class SetCriterion(nn.Module):
         self.losses = losses
         self.focal_alpha = focal_alpha
         self.focal_gamma= focal_gamma
+        # hyperparams for ranking loss
+        self.margin = 0.5
+        self.pos_lambda = 1.0
+        self.neg_lambda = 0.1/math.log(3.5)
+        self.L = 6.0
+        self.tau = 4.0
 
     def const_loss(self, outputs):
         """
@@ -604,6 +627,7 @@ class SetCriterion(nn.Module):
         # - index_i is the indices of the selected predictions (in order)
         # - index_j is the indices of the corresponding selected targets (in order)
 
+        #### check if indices[i][1] == [0] and len(tgt_ids[i]) == 1
         # import pdb; pdb.set_trace()
         tgt_ids = [v["labels"].cpu() for v in targets]
         # len(tgt_ids) == bs
@@ -630,9 +654,11 @@ class SetCriterion(nn.Module):
         # for loss in self.losses:
         #     losses.update(self.get_loss(loss, outputs, targets, indices, num_boxes))
         ## new loss
+        # const_loss = self.ranking_loss_over_imgs(outputs, None, indices, None)['loss_ranking']
         const_loss = self.token_sigmoid_binary_focal_loss(outputs, None, indices, None)['loss_ce']#self.const_loss(outputs)
         reg_loss = self.reg_loss(model, p_norm)
         return {
+            # 'ranking': const_loss,
             'const': const_loss,
             'reg': reg_loss
         }
@@ -697,7 +723,7 @@ class SetCriterion(nn.Module):
             text_mask = text_mask.repeat(1, pred_logits.size(1)).view(outputs['text_mask'].shape[0],-1,outputs['text_mask'].shape[1])
             pred_logits = torch.masked_select(pred_logits, text_mask)
             new_targets = torch.masked_select(new_targets, text_mask)
-
+        
         new_targets=new_targets.float()
         p = torch.sigmoid(pred_logits)
         ce_loss = F.binary_cross_entropy_with_logits(pred_logits, new_targets, reduction="none")
@@ -717,6 +743,49 @@ class SetCriterion(nn.Module):
         losses = {'loss_ce': loss}
         return losses
 
+    def ranking_loss_over_imgs(self, outputs, targets, indices, num_boxes):
+        pred_logits=outputs['pred_logits']
+        new_targets=outputs['one_hot'].to(pred_logits.device)
+        text_mask=outputs['text_mask']
+        
+        assert (new_targets.dim() == 3)
+        assert (pred_logits.dim() == 3)  # batch x from x to
+        
+        if text_mask is not None:
+            # ODVG: each sample has different mask 
+            text_mask = text_mask.repeat(1, pred_logits.size(1)).view(outputs['text_mask'].shape[0],-1,outputs['text_mask'].shape[1])
+            pred_logits = torch.masked_select(pred_logits, text_mask)
+            new_targets = torch.masked_select(new_targets, text_mask)
+        # import pdb; pdb.set_trace()
+        new_targets=new_targets.float()
+        index_range = torch.arange(0, len(new_targets), dtype=pred_logits.dtype, device=pred_logits.device)
+        assert len(index_range) == len(new_targets)
+        ## positive index is index where value is 1 in the first image of batch
+        pos_ind = torch.nonzero(new_targets == 1).squeeze(-1)[:1]
+        idx_mask = ~torch.isin(index_range, pos_ind)
+        # Apply mask to first_tensor to get new_tensor
+        neg_ind = index_range[idx_mask]
+        ### scale logits with sigmoid
+        pos_prob = torch.sigmoid(pred_logits[pos_ind.long()])
+        neg_prob = torch.sigmoid(pred_logits[neg_ind.long()])
+        ### weights for aggregating logits
+        neg_q = F.softmax(neg_prob/self.neg_lambda, dim=0)
+        pos_q = F.softmax(-pos_prob/self.pos_lambda, dim=0)
+        ## positive and negative distribution
+        pos_dist = torch.sum(pos_q * pos_prob)
+        neg_dist = torch.sum(neg_q * neg_prob)
+
+        ## Compute loss function
+        loss = self.tau*torch.log(1.+torch.exp(self.L*(neg_dist - pos_dist+self.margin)))/self.L
+
+        total_num_pos=0
+        for batch_indices in indices:
+            total_num_pos += len(batch_indices[0])
+        num_pos_avg_per_gpu = max(total_num_pos , 1.0)
+        loss=loss.sum()/num_pos_avg_per_gpu
+        
+        losses = {'loss_ranking': loss}
+        return losses
 
     def _get_src_permutation_idx(self, indices):
         # permute predictions following indices
@@ -733,6 +802,7 @@ class SetCriterion(nn.Module):
     def get_loss(self, loss, outputs, targets, indices, num_boxes, **kwargs):
         loss_map = {
             'labels': self.token_sigmoid_binary_focal_loss,
+            # 'ranking': self.ranking_loss_over_imgs,
             'cardinality': self.loss_cardinality,
             'boxes': self.loss_boxes,
         }
@@ -773,7 +843,6 @@ class SetCriterion(nn.Module):
         # - index_i is the indices of the selected predictions (in order)
         # - index_j is the indices of the corresponding selected targets (in order)
 
-        # import pdb; pdb.set_trace()
         tgt_ids = [v["labels"].cpu() for v in targets]
         # len(tgt_ids) == bs
         for i in range(len(indices)):
@@ -796,7 +865,7 @@ class SetCriterion(nn.Module):
         losses = {}
         for loss in self.losses:
             losses.update(self.get_loss(loss, outputs, targets, indices, num_boxes))
-
+        
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if 'aux_outputs' in outputs:
             for idx, aux_outputs in enumerate(outputs['aux_outputs']):
@@ -909,7 +978,7 @@ class PostProcess(nn.Module):
 
         assert len(out_logits) == len(target_sizes)
         assert target_sizes.shape[1] == 2
-        # import pdb; pdb.set_trace()
+        
         prob = prob_to_label
         topk_values, topk_indexes = torch.topk(prob.view(prob.shape[0], -1), num_select, dim=1)
         scores = topk_values
@@ -982,9 +1051,9 @@ def build_groundingdino(args):
     # prepare weight dict
     weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef}
     weight_dict['loss_giou'] = args.giou_loss_coef
+    # if hasattr(args, 'ranking_loss_coef'):
+    #     weight_dict['loss_ranking'] = args.ranking_loss_coef
     clean_weight_dict_wo_dn = copy.deepcopy(weight_dict)
-
-    
 
     clean_weight_dict = copy.deepcopy(weight_dict)
 
@@ -1003,6 +1072,7 @@ def build_groundingdino(args):
             no_interm_box_loss = False
         _coeff_weight_dict = {
             'loss_ce': 1.0,
+            # 'loss_ranking': 1.0, # 4.0
             'loss_bbox': 1.0 if not no_interm_box_loss else 0.0,
             'loss_giou': 1.0 if not no_interm_box_loss else 0.0,
         }
@@ -1015,6 +1085,7 @@ def build_groundingdino(args):
 
     # losses = ['labels', 'boxes', 'cardinality']
     losses = ['labels', 'boxes']
+    # losses = ['ranking', 'boxes']
 
     criterion = SetCriterion(matcher=matcher, weight_dict=weight_dict,
                              focal_alpha=args.focal_alpha, focal_gamma=args.focal_gamma,losses=losses
@@ -1025,9 +1096,9 @@ def build_groundingdino(args):
     return model, criterion, postprocessors
 
 def create_positive_map(tokenized, tokens_positive,cat_list,caption):
-    """construct a map such that positive_map[i,j] = True iff box i is associated to token j"""
+    """construct a map such that positive_map[i,j] = True iff i-th class is associated to token j"""
     positive_map = torch.zeros((len(tokens_positive), 256), dtype=torch.float)
-
+    
     for j,label in enumerate(tokens_positive):
 
         start_ind = caption.find(cat_list[label])

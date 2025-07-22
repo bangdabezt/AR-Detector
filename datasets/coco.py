@@ -371,6 +371,85 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         abs_path = os.path.join(self.root, path)
         return Image.open(abs_path).convert("RGB")
 
+    def get_neg_exemplars(self, id: int, label: int, seed: int, num_neg=20):
+        assert id in self.map_class_id[label]
+        all_pos_idx = []
+        all_neg_idx = []
+        gt_bboxes = []
+        pos_name = self.map_id_filename[id]
+        for idx, temp_img_id in enumerate(self.ids):
+            if temp_img_id != id:
+                if self.map_id_filename[temp_img_id] == pos_name:
+                    # all_pos_idx.append(idx)
+                    gt_img, gt_target = super(CocoDetection, self).__getitem__(idx)
+                    if gt_target[0]['category_id'] == label:
+                        all_pos_idx.append(idx)
+                        for gt in gt_target:
+                            gt_bboxes.append([gt['bbox'][0], gt['bbox'][1], gt['bbox'][0] + gt['bbox'][2], gt['bbox'][1] + gt['bbox'][3]])
+                # elif (temp_img_id not in self.map_class_id[label]): # dont use the same text as positive ## diffCat
+                else:
+                    all_neg_idx.append(idx) ## allCat
+            else:
+                pos_target = self.__getitem__(idx)[0]
+                # get the groundtruth
+                gt_img, gt_target = super(CocoDetection, self).__getitem__(idx)
+                for gt in gt_target:
+                    gt_bboxes.append([gt['bbox'][0], gt['bbox'][1], gt['bbox'][0] + gt['bbox'][2], gt['bbox'][1] + gt['bbox'][3]])
+        assert len(gt_bboxes) > 0 # assure that always has at least 1 target box
+        # randomly sample 20 samples for testing
+        # if len(all_pos_idx) > 10:
+        #     import pdb; pdb.set_trace()
+        # random.seed(seed)
+        # all_neg_idx = random.sample(all_neg_idx, 1)
+        all_sampled_exe_ids = all_pos_idx + all_neg_idx
+        # neg_query_imgs = []
+        # neg_anns = []
+        # for idx in all_sampled_exe_ids:
+        #     img, query, target = self.__getitem__(idx)
+        #     neg_query_imgs.append(query)
+        #     neg_anns.append(target)
+
+        return pos_target, all_sampled_exe_ids, gt_bboxes #neg_query_imgs, neg_anns, gt_bboxes
+
+    def get_all_negatives_opt(self, id: int):
+        ## firstly, remove positive sample with given id ----
+        all_neg_idx = []
+        unique_filename = [self.map_id_filename[id]]
+        for idx in range(len(self.ids)):
+            temp_img_id = self.ids[idx]
+            if temp_img_id != id:
+                if self.map_id_filename[temp_img_id] not in unique_filename:
+                    all_neg_idx.append(idx)
+                    unique_filename.append(self.map_id_filename[temp_img_id])
+            else: 
+                pos_query = self.__getitem__(idx)[1]
+                # get the groundtruth
+                gt_img, gt_target = super(CocoDetection, self).__getitem__(idx)
+                gt_bbox = []
+                for gt in gt_target:
+                    gt_bbox.append([gt['bbox'][0], gt['bbox'][1], gt['bbox'][0] + gt['bbox'][2], gt['bbox'][1] + gt['bbox'][3]])
+        
+        return all_neg_idx, pos_query, gt_bbox
+
+    def get_diffCat(self, id: int, label: int): ### This function is just for quickly testing
+        ## firstly, remove positive sample with given id ----
+        all_neg_idx = []
+        binary_signs = []
+        all_neg_ids = [] 
+        unique_filename = [self.map_id_filename[id]]
+        for idx in range(len(self.ids)):
+            temp_img_id = self.ids[idx]
+            if temp_img_id != id:
+                if self.map_id_filename[temp_img_id] not in unique_filename:
+                    all_neg_idx.append(idx)
+                    all_neg_ids.append(temp_img_id)
+                    unique_filename.append(self.map_id_filename[temp_img_id])
+                    if temp_img_id in self.map_class_id[label]:
+                        binary_signs.append(0)
+                    else:
+                        binary_signs.append(1)
+        return binary_signs, all_neg_ids
+    
     def get_all_negatives(self, id: int, seed: int, num_neg=99):
         ## firstly, remove positive sample with given id ----
         all_neg_idx = []

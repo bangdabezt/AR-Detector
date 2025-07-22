@@ -14,7 +14,6 @@ CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attri
 CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/best_test -c config/finetune_img.py --eval --eval_mode hard_negatives --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
 CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/best_test -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
 
-
 # CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/lr2_all/test_all -c config/finetune_img2.py --eval --datasets config/coco_img.json --resume attribution_finetune/lr2_all/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
 # CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/test_negative -c config/finetune_img.py --eval --eval_mode hard_negatives --datasets config/coco_img.json --resume attribution_finetune/all_loss/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
 # CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/test_all -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/all_loss/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
@@ -27,3 +26,87 @@ CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attri
 
 # CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/const_loss/test_negative_best -c config/finetune_img.py --eval --eval_mode hard_negatives --datasets config/coco_img.json --resume attribution_finetune/const_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
 # CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/const_loss/test_all_best -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/const_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+##
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/test_100 -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint0009.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/test_100 -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint0009.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/test_100_best -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/test_100_best -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/test_100_newest -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/test_100_newest -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/test_100 -c config/finetune_img.py --eval --eval_mode hard_negatives --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint0009.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/test_100 -c config/finetune_img.py --eval --eval_mode hard_negatives --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint0009.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+## test pretrain
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/pretrained -c config/coco_img.py --eval --datasets config/coco_img.json --resume attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/pretrained_LinearProb -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+## test with new metric
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_pretrained -c config/coco_img.py --eval --datasets config/coco_img.json --resume attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_pretrained/diffCat -c config/coco_img.py --eval --datasets config/coco_img.json --resume attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/new_AP_diffCat/newest -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/new_AP_diffCat/newest -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/new_AP_diffCat/best -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/new_AP_diffCat/best -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/new_AP_diffCat/test009 -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint0009.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/new_AP_diffCat/test009 -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint0009.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+## run diffCat first
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_pretrained/best_diffCat -c config/coco_img.py --eval --datasets config/coco_img.json --resume attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/best_diffCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/best_diffCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+# CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/009_diffCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint0009.pth --options text_encoder_type=checkpoints/bert-base-uncased
+# CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/009_diffCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint0009.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+# CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/newest_diffCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
+# CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/newest_diffCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
+## run allCat
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_pretrained/best_allCat -c config/coco_img.py --eval --datasets config/coco_img.json --resume attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/best_allCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/best_allCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/009_allCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint0009.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/009_allCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint0009.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/newest_allCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/newest_allCat -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+## test with training data --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_pretrained/best_trainSet1 -c config/test_train_img.py --eval --datasets config/test_train_img.json --resume attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_all_loss/best_trainSet1 -c config/test_finetune_img.py --eval --datasets config/test_train_img.json --resume attribution_finetune/new_all_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_const_loss/best_trainSet -c config/test_finetune_img.py --eval --datasets config/test_train_img.json --resume attribution_finetune/new_const_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/pretrained/best_trainSet -c config/test_train_img.py --eval --datasets config/test_train_img.json --resume attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+## test on testset again ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/summary_train/best_test/test_pretrain -c config/coco_img.py --eval --datasets config/coco_img.json --resume attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/summary_train/best_test/test_all_loss -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_all_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/summary_train/best_test/test_const_loss -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/new_const_loss/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+## test with pretrained CountGD
+CUDA_VISIBLE_DEVICES=1 python -u main.py --save_results --output_dir ./attribution_class/countgd_pretrain -c config/coco_img.py --eval --datasets config/coco_img.json --resume checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attribution_class/countgd_pretrain1 -c config/coco_img.py --eval --datasets config/coco_img.json --pretrain_model_path checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attr_lvis_img/countgd_pretrain -c config/lvis_cf/lvis_img.py --eval --datasets config/lvis_cf/lvis_img.json --resume checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
+# CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attr_lvis_img -c config/lvis_cf/lvis_img.py --datasets config/lvis_cf/lvis_img.json --pretrain_model_path checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+# CUDA_VISIBLE_DEVICES=1 python -u main.py --save_results --output_dir ./attribution_class -c config/coco_class.py --datasets config/coco_class.json --pretrain_model_path checkpoints/checkpoint_fsc147_best.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+# CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attribution_img_swinT/same_cf -c config/coco_img_swinT.py --datasets config/coco_img.json --pretrain_model_path checkpoints/groundingdino_swint_ogc.pth --options text_encoder_type=checkpoints/bert-base-uncased
+# CUDA_VISIBLE_DEVICES=1 python -u main.py --save_results --output_dir ./attribution_img_swinT/test_trained_model_pos/same_cf/best_test -c config/coco_img_swinT.py --eval --datasets config/coco_img.json --resume attribution_img_swinT/same_cf/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+## finetune with different k
+CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/batch2 -c config/finetune_img.py --datasets config/coco_img.json --pretrain_model_path attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+## CUDA_VISIBLE_DEVICES=0 python -u finetune.py --save_results --output_dir ./attribution_finetune/new_pretrained/best_allCat -c config/coco_img.py --eval --datasets config/coco_img.json --resume attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=1 python -u finetune.py --save_results --output_dir ./attribution_finetune/batch6 -c config/finetune_img.py --datasets config/coco_img.json --pretrain_model_path attribution_img/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+
+## test with different k
+CUDA_VISIBLE_DEVICES=1 python -u main.py --save_results --output_dir ./attribution_finetune/batch2/result -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/batch2/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased
+CUDA_VISIBLE_DEVICES=0 python -u main.py --save_results --output_dir ./attribution_finetune/batch6/result -c config/finetune_img.py --eval --datasets config/coco_img.json --resume attribution_finetune/batch6/checkpoint_best_regular.pth --options text_encoder_type=checkpoints/bert-base-uncased

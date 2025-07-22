@@ -24,6 +24,16 @@ attribution_img/*
 attribution_random/*
 attribution_img_and_class/*
 attribution_finetune/*
+aattribution_img_BERTlarge/*
+attr_lvis_img/*
+attribution_img_BERTlarge/*
+attribution_img_swinB/*
+attribution_img_swinT/*
+
+# redundant files
+client_secrets.json
+upload_ckpt.py
+*.zip
 
 # Distribution / packaging
 .Python

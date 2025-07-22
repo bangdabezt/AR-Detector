@@ -254,23 +254,24 @@ class ContrastiveEmbed(nn.Module):
             _type_: _description_
         """
         assert isinstance(text_dict, dict)
-        # print(x)  #torch.Size([2, 16320, 256])
+        # print(x)  #torch.Size([2, 900, 256])
         # print(text_dict)
-
-        # import pdb;pdb.set_trace()
-        y = text_dict["encoded_text"]  #torch.Size([2, 195, 256])
-        text_token_mask = text_dict["text_token_mask"]
+        
+        y = text_dict["encoded_text"]  #torch.Size([2, 5, 256]) # 2, 257, 256
+        text_token_mask = text_dict["text_token_mask"] # shape[2, 5]
         ### Adapter here
         if (target_adapter != None) and (query_adapter != None):
             x = target_adapter(x)
             y = query_adapter(y)
-        res = x @ y.transpose(-1, -2)
+        res = x @ y.transpose(-1, -2) # shape [2, 900, 5]
         res.masked_fill_(~text_token_mask[:, None, :], float("-inf"))
         # 接着，对res进行掩码操作，将未使用的文本token（即padding的token）对应的得分置为负无穷float("-inf")。这是为了在计算相似度时，排除padding部分的影响。
 
 
         # padding to max_text_len
         new_res = torch.full((*res.shape[:-1], self.max_text_len), float("-inf"), device=res.device)
-        new_res[..., : res.shape[-1]] = res  #torch.Size([2, 16320, 195])
+        # new_res : [2, 13294, 256]; res : [2, 13294, 24] # self.max_text_len : 256
+        # res of lvis : [2, 13294, 257]
+        new_res[..., : res.shape[-1]] = res  #torch.Size([2, 900, 256])
 
         return new_res

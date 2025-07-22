@@ -50,11 +50,11 @@ def partition_by_label_with_categories(input_file, train_file, val_file, test_fi
 # Example usage
 partition_by_label_with_categories(
     input_file='output.jsonl',
-    train_file='train_label.jsonl',
-    val_file='val_label.jsonl',
-    test_file='test_label.jsonl',
-    val_categories=['dog'],  # Specify categories for validation
-    test_categories=['bird'],   # Specify categories for testing
+    train_file='train_label2.jsonl',
+    val_file='val_teddy.jsonl',
+    test_file='test_sheep.jsonl',
+    val_categories=['teddy bear'],  # Specify categories for validation
+    test_categories=['sheep'],   # Specify categories for testing
     seed=42                      # Set seed for consistency
 )
 

@@ -110,6 +110,7 @@ dec_pred_class_embed_share = True
 match_unstable_error = True
 use_detached_boxes_dec_out = False
 dn_scalar = 100
+adapter_type = ''
 
 box_threshold = 0.23
 text_threshold = 0

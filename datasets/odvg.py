@@ -71,7 +71,7 @@ class ODVGDataset(VisionDataset):
             if category in mapper:
                 mapper[category].append(img_id)
             else:
-                mapper[category] = []
+                mapper[category] = [img_id]
         return mapper
 
     def load_coco_gt(self, anno):
@@ -225,6 +225,49 @@ class ODVGDataset(VisionDataset):
             ## add this img to negative_dataset
             negative_dataset.append(image)
         return negative_dataset, pos_target, pos_query
+
+    def get_hard_negatives_ranking(self, img_id: int, category: str, seed: int, num_neg=3):
+        # if img_id not in self.map_class_imgid[category]:
+        #     import pdb; pdb.set_trace()
+        assert img_id in self.map_class_imgid[category]
+        ## first get all indexes of negatives
+        all_neg_idx = []
+        pos_index = self.map_imgid_index[img_id]
+        unique_filename = [self.metas[pos_index]['filename']]
+        for idx in range(len(self.metas)):
+            temp_meta = self.metas[idx]
+            if idx != pos_index:
+                if (temp_meta['filename'] not in unique_filename) and (temp_meta['query_file']['image_id'] in self.map_class_imgid[category]):
+                    all_neg_idx.append(idx)
+                    unique_filename.append(temp_meta['filename'])
+            else:
+                pos_target, pos_query, _ = self.__getitem__(idx)
+        # randomly choose num_neg negative targets for finetuning
+        random.seed(seed)
+        all_neg_idx = random.sample(all_neg_idx, num_neg)
+        negative_dataset = []
+        negative_targets = []
+        for idx in all_neg_idx:
+            # meta = self.metas[idx]
+            # abs_path = os.path.join(self.root, meta["filename"])
+            # if not os.path.exists(abs_path):
+            #     raise FileNotFoundError(f"{abs_path} not found.")
+            # image = Image.open(abs_path).convert('RGB')
+            # w, h = image.size
+            # anno = meta["detection"]
+            # instances = [obj for obj in anno["instances"]]
+            # boxes = [obj["bbox"] for obj in instances]
+            # temp_target = {}
+            # temp_target["size"] = torch.as_tensor([int(h), int(w)])
+            # temp_target["boxes"] = boxes
+            # temp_target["orig_size"] = torch.as_tensor([int(h), int(w)])
+            # if self.transforms is not None:
+            #     image, temp_target = self.transforms(image, temp_target)
+            ## add this img to negative_dataset
+            image, query_image, temp_target = self.__getitem__(idx)
+            negative_dataset.append(image)
+            negative_targets.append(temp_target)
+        return negative_dataset, negative_targets, pos_target, pos_query
     
     def __getitem__(self, index: int):
         meta = self.metas[index]
@@ -253,7 +296,7 @@ class ODVGDataset(VisionDataset):
             pos_labels = set(ori_classes)
             # neg bbox labels 
             neg_labels = self.label_index.difference(pos_labels)
-             
+            
             vg_labels = list(pos_labels)
             num_to_add = min(len(neg_labels), self.max_labels-len(pos_labels))
             if num_to_add > 0:
@@ -306,12 +349,23 @@ class ODVGDataset(VisionDataset):
         target["orig_size"] = torch.as_tensor([int(h), int(w)])
         target["size"] = torch.as_tensor([int(h), int(w)])
         target["image_id"] = img_id
-
+        import copy
+        pre_target = copy.deepcopy(target)
+        pre_img = copy.deepcopy(image)
         if self.transforms is not None:
             image, target = self.transforms(image, target)
             ## be careful because exemplars haven't been transformed
             query, q_targ = self.transforms(query, {})
-
+            for idx_ in range(100):
+                if len(target["labels"]) > 0: break
+                # print(idx_)
+                image, target = self.transforms(pre_img, pre_target)
+        # if len(target["labels"]) == 0:
+        #     print(index)
+        #     print(pre_target)
+        #     print(target)
+        #     print(self.transforms(pre_img, pre_target)[1])
+            # import pdb; pdb.set_trace()
         return image, query, target
     
 

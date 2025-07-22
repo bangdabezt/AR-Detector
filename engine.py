@@ -21,7 +21,7 @@ import util.customize_metric as cmetric
 
 def negative_train(model: torch.nn.Module, criterion: torch.nn.Module, dataset, target, args=None):
     device = torch.device(args.device)
-    new_batch_size = 4
+    new_batch_size = 2 # 4
     # image id of positive sample
     img_id = target['image_id'].item()
     label = target['labels_uncropped'].item()
@@ -142,6 +142,350 @@ def finetune_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     #     resstat.update({f'weight_{k}': v for k,v in criterion.weight_dict.items()})
     return resstat
 
+def finetune_ranking_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+                    data_loader: Iterable, optimizer: torch.optim.Optimizer,
+                    device: torch.device, epoch: int, max_norm: float = 0, 
+                    wo_class_error=False, lr_scheduler=None, args=None, logger=None):
+    scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
+    model.train()
+    criterion.train()
+    metric_logger = utils.MetricLogger(delimiter="  ")
+    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    if not wo_class_error:
+        metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
+    header = 'Epoch: [{}]'.format(epoch)
+    print_freq = 10
+
+    _cnt = 0
+    # set weight dict
+    weight_dict = {
+        'ranking': 1.0,
+        # 'reg': 0.05
+    }
+    if args.use_reg_loss: weight_dict['reg'] = 0.05
+
+    for samples, queries, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
+        # import pdb; pdb.set_trace()
+        assert len(targets) == 1 # currently only learning with 1 positive sample
+        samples = samples.to(device)
+        queries = queries.to(device)
+        # other info
+        captions = [t["caption"] for t in targets]
+        cap_list = [t["cap_list"] for t in targets]
+        cap_dict = {
+            'caption': captions[0],
+            'cap_list': cap_list[0]
+        }
+        # import pdb; pdb.set_trace()
+        if len(targets[0]["labels"]) == 0: 
+            print('{}------------------------------------------------------------------'.format(_cnt))
+            _cnt += 1
+            continue
+        targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
+        # loss_dict = negative_train(model, criterion, data_loader.dataset, targets[0], args)
+        with torch.cuda.amp.autocast(enabled=args.amp):
+            outputs, targets = forward_with_negatives(model, data_loader.dataset, targets[0], cap_dict, args)
+            # new batch size
+            bs = len(targets)
+            ## loss for backward
+            loss_dict = criterion.finetune_loss(model, outputs, targets, cap_list * bs, captions * bs)
+            losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+
+        # reduce losses over all GPUs for logging purposes
+        loss_dict_reduced = utils.reduce_dict(loss_dict)
+        loss_dict_reduced_unscaled = {f'{k}_unscaled': v
+                                      for k, v in loss_dict_reduced.items()}
+        loss_dict_reduced_scaled = {k: v * weight_dict[k]
+                                    for k, v in loss_dict_reduced.items() if k in weight_dict}
+        losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
+
+        loss_value = losses_reduced_scaled.item()
+
+        if not math.isfinite(loss_value):
+            print("Loss is {}, stopping training".format(loss_value))
+            print(loss_dict_reduced)
+            sys.exit(1)
+
+        # amp backward function
+        if args.amp:
+            optimizer.zero_grad()
+            scaler.scale(losses).backward()
+            if max_norm > 0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            # original backward function
+            optimizer.zero_grad()
+            losses.backward()
+            if max_norm > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+            optimizer.step()
+
+        if args.onecyclelr:
+            lr_scheduler.step()
+
+
+        metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
+        if 'class_error' in loss_dict_reduced:
+            metric_logger.update(class_error=loss_dict_reduced['class_error'])
+        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+
+        _cnt += 1
+        if args.debug:
+            if _cnt % 15 == 0:
+                print("BREAK!"*5)
+                break
+
+    if getattr(criterion, 'loss_weight_decay', False):
+        criterion.loss_weight_decay(epoch=epoch)
+    if getattr(criterion, 'tuning_matching', False):
+        criterion.tuning_matching(epoch)
+
+
+    # gather the stats from all processes
+    metric_logger.synchronize_between_processes()
+    print("Averaged stats:", metric_logger)
+    resstat = {k: meter.global_avg for k, meter in metric_logger.meters.items() if meter.count > 0}
+    # if getattr(criterion, 'loss_weight_decay', False):
+    #     resstat.update({f'weight_{k}': v for k,v in criterion.weight_dict.items()})
+    return resstat
+
+# @torch.no_grad()
+# def eval_ranking_init(model: torch.nn.Module, criterion: torch.nn.Module,
+#                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
+#                     device: torch.device, epoch: int, max_norm: float = 0, 
+#                     wo_class_error=False, lr_scheduler=None, args=None, logger=None):
+#     model.eval()
+#     criterion.eval()
+#     metric_logger = utils.MetricLogger(delimiter="  ")
+#     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+#     if not wo_class_error:
+#         metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
+#     header = 'Epoch: [{}]'.format(epoch)
+#     print_freq = 10
+
+#     _cnt = 0
+#     # set weight dict
+#     weight_dict = {
+#         'ranking': 1.0,
+#         # 'reg': 0.05
+#     }
+#     if args.use_reg_loss: weight_dict['reg'] = 0.05
+
+#     for samples, queries, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
+#         # import pdb; pdb.set_trace()
+#         assert len(targets) == 1 # currently only learning with 1 positive sample
+#         samples = samples.to(device)
+#         queries = queries.to(device)
+#         # other info
+#         captions = [t["caption"] for t in targets]
+#         cap_list = [t["cap_list"] for t in targets]
+#         cap_dict = {
+#             'caption': captions[0],
+#             'cap_list': cap_list[0]
+#         }
+#         # import pdb; pdb.set_trace()
+#         if len(targets[0]["labels"]) == 0: 
+#             print('{}------------------------------------------------------------------'.format(_cnt))
+#             _cnt += 1
+#             continue
+#         targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
+#         # loss_dict = negative_train(model, criterion, data_loader.dataset, targets[0], args)
+#         with torch.cuda.amp.autocast(enabled=args.amp):
+#             outputs, targets = forward_with_negatives(model, data_loader.dataset, targets[0], cap_dict, args)
+#             # new batch size
+#             bs = len(targets)
+#             ## loss for backward
+#             loss_dict = criterion.finetune_loss(model, outputs, targets, cap_list * bs, captions * bs)
+#             losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+
+#         # reduce losses over all GPUs for logging purposes
+#         loss_dict_reduced = utils.reduce_dict(loss_dict)
+#         loss_dict_reduced_unscaled = {f'{k}_unscaled': v
+#                                       for k, v in loss_dict_reduced.items()}
+#         loss_dict_reduced_scaled = {k: v * weight_dict[k]
+#                                     for k, v in loss_dict_reduced.items() if k in weight_dict}
+#         losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
+
+#         loss_value = losses_reduced_scaled.item()
+
+#         if not math.isfinite(loss_value):
+#             print("Loss is {}, stopping training".format(loss_value))
+#             print(loss_dict_reduced)
+#             sys.exit(1)
+
+#         metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
+#         if 'class_error' in loss_dict_reduced:
+#             metric_logger.update(class_error=loss_dict_reduced['class_error'])
+#         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+
+#         _cnt += 1
+#         if args.debug:
+#             if _cnt % 15 == 0:
+#                 print("BREAK!"*5)
+#                 break
+
+#     if getattr(criterion, 'loss_weight_decay', False):
+#         criterion.loss_weight_decay(epoch=epoch)
+#     if getattr(criterion, 'tuning_matching', False):
+#         criterion.tuning_matching(epoch)
+
+
+#     # gather the stats from all processes
+#     metric_logger.synchronize_between_processes()
+#     print("Averaged stats:", metric_logger)
+#     resstat = {k: meter.global_avg for k, meter in metric_logger.meters.items() if meter.count > 0}
+#     # if getattr(criterion, 'loss_weight_decay', False):
+#     #     resstat.update({f'weight_{k}': v for k,v in criterion.weight_dict.items()})
+#     return resstat
+
+import copy
+def forward_with_negatives(model: torch.nn.Module, dataset, target, cap_dict, args=None):
+    device = torch.device(args.device)
+    new_batch_size = 2 # adapter_rank_bs4 -> change this value to 4
+    targets = [target]
+    # image id of positive sample
+    img_id = target['image_id'].item()
+    label = target['labels_uncropped'].item()
+    # get negative sample from dataset
+    neg_images, neg_anns, pos_target, pos_query = dataset.get_hard_negatives_ranking(img_id, cap_dict['cap_list'][label], args.seed, new_batch_size-1)
+    assert len(neg_images) < new_batch_size
+    # combine negative and positive samples to create a batch
+    samples = [pos_target] + neg_images
+    ng_bs = len(samples)
+    queries = [pos_query for _ in range(ng_bs)]
+    exemplars = [target["exemplars"].to(device) for _ in range(ng_bs)]
+    labels_uncropped = [target["labels_uncropped"].to(device) for _ in range(ng_bs)]
+    captions = [cap_dict["caption"] for _ in range(ng_bs)]
+    # NestedTensor
+    samples = utils.nested_tensor_from_tensor_list(samples).to(device)
+    queries = utils.nested_tensor_from_tensor_list(queries).to(device)
+    # train model with new batch
+    with torch.cuda.amp.autocast(enabled=args.amp):
+        outputs = model(samples, queries, exemplars, labels_uncropped, captions=captions)
+    ## update target by replacing 'size', 'boxes', and maybe 'orig_size'
+    for t_ann in neg_anns:
+        temp_ann = copy.deepcopy(target)
+        temp_ann['size'] = t_ann['size'].to(device)
+        temp_ann['boxes'] = t_ann['boxes'].to(device)
+        temp_ann['orig_size'] = t_ann['orig_size'].to(device)
+        targets.append(temp_ann)
+    return outputs, targets
+
+def train_ranking_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
+                    data_loader: Iterable, optimizer: torch.optim.Optimizer,
+                    device: torch.device, epoch: int, max_norm: float = 0, 
+                    wo_class_error=False, lr_scheduler=None, args=None, logger=None):
+    scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
+    model.train()
+    criterion.train()
+    metric_logger = utils.MetricLogger(delimiter="  ")
+    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    if not wo_class_error:
+        metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
+    header = 'Epoch: [{}]'.format(epoch)
+    print_freq = 10
+
+    _cnt = 0
+
+    for samples, queries, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
+        assert len(targets) == 1 ## currently support 1 positive sample only
+        # if _cnt < 400: # 375
+        #     _cnt += 1
+        #     continue
+        samples = samples.to(device)
+        queries = queries.to(device)
+        # other info
+        captions = [t["caption"] for t in targets]
+        cap_list = [t["cap_list"] for t in targets]
+        cap_dict = {
+            'caption': captions[0],
+            'cap_list': cap_list[0]
+        }
+        # import pdb; pdb.set_trace()
+        if len(targets[0]["labels"]) == 0: 
+            print('{}------------------------------------------------------------------'.format(_cnt))
+            _cnt += 1
+            continue
+        # exemplars = [t["exemplars"].to(device) for t in targets]
+        # labels_uncropped = [t["labels_uncropped"].to(device) for t in targets]
+        targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
+        
+        with torch.cuda.amp.autocast(enabled=args.amp):
+            # outputs = model(samples, queries, exemplars, labels_uncropped, captions=captions)
+            ## copy 'size', 'boxes', and maybe 'orig_size' of negatives to target, while keep the other fields the same
+            outputs, targets = forward_with_negatives(model, data_loader.dataset, targets[0], cap_dict, args)
+            ## change losses in criterion before forwarding criterion, substitute 'labels' loss with 'ranking' loss
+            ## ------ revise the targets, cap_list,... ----------------------------------------------------------------------------
+            bs = len(targets)
+            assert len(outputs['pred_logits']) == bs
+            loss_dict = criterion(outputs, targets, cap_list * bs, captions * bs) 
+            weight_dict = criterion.weight_dict
+
+            losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+        # reduce losses over all GPUs for logging purposes
+        loss_dict_reduced = utils.reduce_dict(loss_dict)
+        loss_dict_reduced_unscaled = {f'{k}_unscaled': v
+                                      for k, v in loss_dict_reduced.items()}
+        loss_dict_reduced_scaled = {k: v * weight_dict[k]
+                                    for k, v in loss_dict_reduced.items() if k in weight_dict}
+        losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
+
+        loss_value = losses_reduced_scaled.item()
+
+        if not math.isfinite(loss_value):
+            print("Loss is {}, stopping training".format(loss_value))
+            print(loss_dict_reduced)
+            sys.exit(1)
+
+        # amp backward function
+        if args.amp:
+            optimizer.zero_grad()
+            scaler.scale(losses).backward()
+            if max_norm > 0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            # original backward function
+            optimizer.zero_grad()
+            losses.backward()
+            if max_norm > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+            optimizer.step()
+
+        if args.onecyclelr:
+            lr_scheduler.step()
+
+
+        metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
+        if 'class_error' in loss_dict_reduced:
+            metric_logger.update(class_error=loss_dict_reduced['class_error'])
+        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+
+        _cnt += 1
+        if args.debug:
+            if _cnt % 15 == 0:
+                print("BREAK!"*5)
+                break
+
+    if getattr(criterion, 'loss_weight_decay', False):
+        criterion.loss_weight_decay(epoch=epoch)
+    if getattr(criterion, 'tuning_matching', False):
+        criterion.tuning_matching(epoch)
+
+
+    # gather the stats from all processes
+    metric_logger.synchronize_between_processes()
+    print("Averaged stats:", metric_logger)
+    resstat = {k: meter.global_avg for k, meter in metric_logger.meters.items() if meter.count > 0}
+    if getattr(criterion, 'loss_weight_decay', False):
+        resstat.update({f'weight_{k}': v for k,v in criterion.weight_dict.items()})
+    return resstat
+
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, max_norm: float = 0, 
@@ -173,7 +517,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         with torch.cuda.amp.autocast(enabled=args.amp):
             outputs = model(samples, queries, exemplars, labels_uncropped, captions=captions)
             loss_dict = criterion(outputs, targets, cap_list, captions)
-
+            # import pdb; pdb.set_trace()
             weight_dict = criterion.weight_dict
 
             losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
@@ -242,8 +586,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 def test_negatives(model, postprocessors, dataset, pos_results, targets, exemplars, captions, args=None):
     model.eval()
     device = torch.device(args.device)
-    neg_bs = 1
-    def postprocess_res(result, limit_num_pred = 100):
+    neg_bs = 2
+    def postprocess_res(result, limit_num_pred = 1):
         """
         Input:
             - result: dict of torch.tensor {'scores', 'labels', 'boxes'}
@@ -295,6 +639,152 @@ def test_negatives(model, postprocessors, dataset, pos_results, targets, exempla
         all_gt_boxes.append(gt_bboxes)
     return all_results, all_gt_boxes
 
+@torch.no_grad()
+def test_negatives_opt(model, postprocessors, dataset, pos_results, targets, exemplars, captions, args=None):
+    model.eval()
+    device = torch.device(args.device)
+    neg_bs = 2
+    def postprocess_res(result, limit_num_pred = 1):
+        """
+        Input:
+            - result: dict of torch.tensor {'scores', 'labels', 'boxes'}
+            - limit_num_pred: number of prediction to retain in result
+        Output: List of boxes combined with scores
+        """
+        all_boxes = result['boxes'][:limit_num_pred].tolist()
+        all_scores = result['scores'][:limit_num_pred].tolist()
+        combined_result = [(all_boxes[idx] + [all_scores[idx]]) for idx in range(limit_num_pred)]
+        return combined_result
+
+    all_results = []
+    all_gt_boxes = []
+    for pos_index, target in enumerate(targets):
+        ## first of all, get the result of positive sample
+        sample_result = []
+        sample_result.extend(postprocess_res(pos_results[pos_index]))
+        ## process for negative samples
+        img_id = target['image_id'].item()
+        neg_indexes, pos_query, gt_bboxes = dataset.get_all_negatives_opt(img_id)
+
+        for neg_index in range(0, len(neg_indexes), neg_bs):
+            print(neg_index)
+            neg_images = []
+            neg_anns = []
+            for neg_id in neg_indexes[neg_index: neg_index + neg_bs]:
+                temp_img, temp_query, temp_target = dataset.__getitem__(neg_id)
+                neg_images.append(temp_img)
+                neg_anns.append(temp_target)
+            temp_neg_bs = len(neg_images)
+            neg_queries = utils.nested_tensor_from_tensor_list([pos_query for _ in range(temp_neg_bs)]).to(device)
+            neg_exemplars = [exemplars[pos_index] for _ in range(temp_neg_bs)]
+            neg_samples = utils.nested_tensor_from_tensor_list(neg_images).to(device)
+            with torch.cuda.amp.autocast(enabled=args.amp):
+                outputs = model(neg_samples, neg_queries, neg_exemplars, [torch.tensor([0]).to(device) for _ in range(temp_neg_bs)], captions=[captions[pos_index] for _ in range(temp_neg_bs)])
+        
+            orig_target_sizes = torch.stack([t["orig_size"].to(device) for t in neg_anns], dim=0)
+
+            results = postprocessors['bbox'](outputs, orig_target_sizes)
+            for index in range(temp_neg_bs):
+                sample_result.extend(postprocess_res(results[index]))
+        
+        ## Update all results
+        all_results.append(sample_result)
+        all_gt_boxes.append(gt_bboxes)
+    return all_results, all_gt_boxes
+
+@torch.no_grad()
+def test_diffCat(model, postprocessors, dataset, pos_results, targets, exemplars, captions, args=None):
+    model.eval()
+    device = torch.device(args.device)
+    neg_bs = 2
+    all_results = []
+    for pos_index, target in enumerate(targets):
+        ## first of all, get the result of positive sample
+        sample_result = []
+        img_id = target['image_id'].item()
+        # sample_result.append(1)
+        # import pdb; pdb.set_trace()
+        sample_result.append(img_id)
+        ## process for negative samples
+        bin_signs, neg_ids = dataset.get_diffCat(img_id, target['labels'].item())
+        sample_result = sample_result + neg_ids #bin_signs
+        
+        ## Update all results
+        all_results.append(sample_result)
+    return all_results, []
+
+@torch.no_grad()
+def test_neg_exemplars(model, postprocessors, dataset, pos_results, targets, unique_targets, args=None):
+    model.eval()
+    device = torch.device(args.device)
+    neg_bs = 2
+    def postprocess_res(result, limit_num_pred = 1):
+        """
+        Input:
+            - result: dict of torch.tensor {'scores', 'labels', 'boxes'}
+            - limit_num_pred: number of prediction to retain in result
+        Output: List of boxes combined with scores
+        """
+        all_boxes = result['boxes'][:limit_num_pred].tolist()
+        all_scores = result['scores'][:limit_num_pred].tolist()
+        combined_result = [(all_boxes[idx] + [all_scores[idx]]) for idx in range(limit_num_pred)]
+        return combined_result
+    
+    all_results = []
+    all_gt_boxes = []
+    for pos_index, target in enumerate(targets):
+        # check if there exists target name:
+        # import pdb; pdb.set_trace()
+        img_id = target['image_id'].item()
+        target_name = dataset.map_id_filename[img_id] + str(target['labels'].item())
+        if target_name in unique_targets:
+            all_results.append([])
+            all_gt_boxes.append([])
+            continue
+        ## update unique_targets
+        unique_targets.append(target_name)
+        ## first of all, get the result of positive sample
+        sample_result = []
+        sample_result.extend(postprocess_res(pos_results[pos_index]))
+        ## process for negative exemplars
+        pos_target, neg_indexes, gt_bboxes = dataset.get_neg_exemplars(img_id, target['labels'].item(), args.seed)
+
+        ###
+        for neg_index in range(0, len(neg_indexes), neg_bs):
+            print(neg_index)
+            # if neg_index > 30: break 
+            # import pdb; pdb.set_trace()
+            new_targets = []
+            neg_query_imgs = []
+            for neg_id in neg_indexes[neg_index: neg_index + neg_bs]:
+                temp_img, temp_query, temp_target = dataset.__getitem__(neg_id)
+                new_targets.append(temp_target)
+                neg_query_imgs.append(temp_query)
+            # new_targets = neg_anns[neg_index: neg_index + neg_bs]
+            neg_exemplars = [t["exemplars"].to(device) for t in new_targets]
+            # labels_uncropped = [t["labels_uncropped"].to(device) for t in targets]
+            new_targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in new_targets]
+            input_captions = [args.label_list[target['labels'][0]] + " ." for target in new_targets]
+            # test with hard negatives only
+            temp_neg_bs = len(new_targets)
+            neg_samples = utils.nested_tensor_from_tensor_list([pos_target for _ in range(temp_neg_bs)]).to(device)
+            neg_queries = utils.nested_tensor_from_tensor_list(neg_query_imgs).to(device)
+            # neg_exemplars = [exemplars[pos_index] for _ in range(temp_neg_bs)]
+            # neg_samples = utils.nested_tensor_from_tensor_list(neg_images[neg_index: neg_index + neg_bs]).to(device)
+            with torch.cuda.amp.autocast(enabled=args.amp):
+                outputs = model(neg_samples, neg_queries, neg_exemplars, [torch.tensor([0]).to(device) for _ in range(temp_neg_bs)], captions=input_captions)
+        
+            orig_target_sizes = torch.stack([target["orig_size"].to(device) for _ in range(temp_neg_bs)], dim=0)
+
+            results = postprocessors['bbox'](outputs, orig_target_sizes)
+            for index in range(temp_neg_bs):
+                sample_result.extend(postprocess_res(results[index]))
+        
+        ## Update all results
+        all_results.append(sample_result)
+        all_gt_boxes.append(gt_bboxes)
+
+    return all_results, all_gt_boxes, unique_targets
 
 @torch.no_grad()
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, wo_class_error=False, args=None, logger=None):
@@ -343,7 +833,14 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     print("Input text prompt:", caption)
     customized_results = []
     all_gt_bboxes = []
+    all_target_names = []
+    # cnt_sample = 0
     for samples, queries, targets in metric_logger.log_every(data_loader, 10, header, logger=logger):
+        # cnt_sample = cnt_sample + len(targets)
+        # if cnt_sample < 4300:
+        #     continue
+        # else:
+        #     import pdb; pdb.set_trace()
         samples = samples.to(device)
         queries = queries.to(device)
         
@@ -355,7 +852,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         # input_captions = [caption] * bs ### this caption help to increase the AP and AR
         input_captions = [cat_list[target['labels'][0]] + " ." for target in targets]
         print("input_captions: " + str(input_captions))
-        
+        # import pdb; pdb.set_trace()
         with torch.cuda.amp.autocast(enabled=args.amp):
             ## add query samples
             outputs = model(samples, queries, exemplars, [torch.tensor([0]).to(device) for t in targets], captions=input_captions)
@@ -366,9 +863,14 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         #### Process for negative samples -----------------------------------------------------------------------------------------------------------
         # import pdb; pdb.set_trace()
         if args.eval:
-            all_results, all_gt_boxes = test_negatives(model, postprocessors, data_loader.dataset, results, 
+            # all_results, all_gt_boxes = test_diffCat(model, postprocessors, data_loader.dataset, results, 
+            #                                             targets, exemplars, input_captions, args)
+            all_results, all_gt_boxes = test_negatives_opt(model, postprocessors, data_loader.dataset, results, 
                                                         targets, exemplars, input_captions, args)
+            # all_results, all_gt_boxes, all_target_names = test_neg_exemplars(model, postprocessors, data_loader.dataset, results, 
+            #                                                                     targets, all_target_names, args)
             for sid in range(bs):
+                # if all_results[sid] == []: continue
                 save_res = {
                     "results": all_results[sid],
                     "gt_box": all_gt_boxes[sid]
@@ -456,14 +958,14 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
                 print("BREAK!"*5)
                 break
 
-    if args.save_results:
-        import os.path as osp
+    # if args.save_results:
+    #     import os.path as osp
         
-        # output_state_dict['gt_info'] = torch.cat(output_state_dict['gt_info'])
-        # output_state_dict['res_info'] = torch.cat(output_state_dict['res_info'])
-        savepath = osp.join(args.output_dir, 'results-{}.pkl'.format(utils.get_rank()))
-        print("Saving res to {}".format(savepath))
-        torch.save(output_state_dict, savepath)
+    #     # output_state_dict['gt_info'] = torch.cat(output_state_dict['gt_info'])
+    #     # output_state_dict['res_info'] = torch.cat(output_state_dict['res_info'])
+    #     savepath = osp.join(args.output_dir, 'results-{}.pkl'.format(utils.get_rank()))
+    #     print("Saving res to {}".format(savepath))
+    #     torch.save(output_state_dict, savepath)
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
