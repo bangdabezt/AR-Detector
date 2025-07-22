@@ -49,6 +49,10 @@ conda env create -f environment.yml
 conda activate AR_Detector
 ```
 
+### Download Synthesized Dataset
+
+### Download Pre-trained CountGD and Backbones
+
 ## Synthesize Attribution-Region Dataset
 
 We will release our code for dataset generation soon.
@@ -56,6 +60,8 @@ We will release our code for dataset generation soon.
 ## ARD Testing
 
 Instructions for testing ARD with synthesized dataset.
+
+### Download Trained ARD Weights
 
 ## ARD Training
 
@@ -69,4 +75,4 @@ Instructions for running ARD on a single sample.
 
 ### Acknowledgements
 
-This repository is based on the [CountGD](https://github.com/niki-amini-naieni/CountGD/tree/main) and [Open-GroundingDino](https://github.com/longzw1997/Open-GroundingDino/tree/main), which are both built on [GroundingDINO repository](https://github.com/IDEA-Research/GroundingDINO).
+This repository is based on the [CountGD](https://github.com/niki-amini-naieni/CountGD/tree/main) and [Open-GroundingDino](https://github.com/longzw1997/Open-GroundingDino/tree/main). Our dataset generation is based on [Break-A-Scene](https://github.com/google/break-a-scene), [SAM](https://github.com/facebookresearch/segment-anything) and [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO).
