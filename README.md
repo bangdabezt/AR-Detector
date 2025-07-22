@@ -22,6 +22,10 @@ Data attribution in text-to-image generative models is a crucial yet underexplor
 
 ## Contents
 * [Preparation](#preparation)
+* [Dataset Generation](#synthesize-attribution-region-dataset)
+* [Testing Code](#ard-testing)
+* [Training Code](#ard-training)
+* [ARD Inference](#ard-inference)
 * [Citation](#citation)
 * [Acknowledgements](#acknowledgements)
 
@@ -44,6 +48,22 @@ cd AR-Detector/
 conda env create -f environment.yml
 conda activate AR_Detector
 ```
+
+## Synthesize Attribution-Region Dataset
+
+We will release our code for dataset generation soon.
+
+## ARD Testing
+
+Instructions for testing ARD with synthesized dataset.
+
+## ARD Training
+
+Instructions for training ARD with synthesized dataset.
+
+## ARD Inference
+
+Instructions for running ARD on a single sample.
 
 ## Citation
 
